@@ -1,6 +1,6 @@
+use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
-use crate::domain::asset::NewAsset;
 
 pub struct AssetService {
     repository: Box<dyn AssetRepository>,
@@ -11,16 +11,36 @@ impl AssetService {
         Self { repository }
     }
 
-    pub fn add_asset(&mut self, name: String) -> Result<(), AppError> {
-        let trimmed_name = name.trim();
+    pub fn add_asset(
+        &mut self,
+        name: String,
+        reference_type: ReferenceType,
+        reference_value: String,
+    ) -> Result<(), AppError> {
+        let name = name.trim();
 
-        if trimmed_name.is_empty() {
+        if name.is_empty() {
             return Err(AppError::Validation(
-                "Asset name must not be empty.".to_string(),
+                "Asset name must not be empty".into(),
             ));
         }
 
-        let asset = NewAsset::new(trimmed_name.to_string());
+        let reference = AssetReference::new(reference_type, reference_value)
+            .map_err(AppError::Validation)?;
+
+        let asset = Asset {
+            name: name.to_string(),
+            reference,
+        };
+
         self.repository.add_asset(&asset)
+    }
+}
+
+pub fn reference_type_to_str(rt: ReferenceType) -> &'static str {
+    match rt {
+        ReferenceType::Iban => "IBAN",
+        ReferenceType::Isin => "ISIN",
+        ReferenceType::Ticker => "TICKER",
     }
 }
