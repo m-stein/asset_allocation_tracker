@@ -1,5 +1,5 @@
 [package]
-name = "AssetAllocationTracker"
+name = "asset_allocation_tracker"
 version = "0.1.0"
 edition = "2024"
 

@@ -3,15 +3,6 @@
 version = 4
 
 [[package]]
-name = "AssetAllocationTracker"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "egui",
- "rusqlite",
-]
-
-[[package]]
 name = "ab_glyph"
 version = "0.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -230,6 +221,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bb44936d800fea8f016d7f2311c6a4f97aebd5dc86f09906139ec848cf3a46f"
 dependencies = [
  "libloading",
+]
+
+[[package]]
+name = "asset_allocation_tracker"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "egui",
+ "rusqlite",
 ]
 
 [[package]]
