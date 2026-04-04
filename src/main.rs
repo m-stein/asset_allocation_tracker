@@ -1,11 +1,11 @@
 mod app;
 mod domain;
-mod infrastructure;
+mod infra;
 mod ui;
 
 use app::asset_service::AssetService;
 use eframe::egui;
-use infrastructure::sqlite_asset_repository::SqliteAssetRepository;
+use infra::sqlite_asset_repository::SqliteAssetRepository;
 use ui::desktop_app::DesktopApp;
 
 const DB_PATH: &str = "./data/assets.sdb";
