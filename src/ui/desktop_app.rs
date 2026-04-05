@@ -4,12 +4,13 @@ use jiff::civil::Date;
 use jiff::Zoned;
 
 use crate::app::asset_service::AssetService;
+use crate::domain::allocation_record::AllocationPosition;
 use crate::domain::asset::ReferenceType;
 
-pub struct AssetListItem {
+pub struct PositionListItem {
     pub id: i64,
     pub label: String,
-    pub selected: bool,
+    pub amount_input: String,
 }
 
 pub struct DesktopApp {
@@ -22,7 +23,7 @@ pub struct DesktopApp {
 
     show_add_allocation_record_dialog: bool,
     allocation_record_date: Date,
-    allocation_record_assets: Vec<AssetListItem>,
+    allocation_record_assets: Vec<PositionListItem>,
 
     status_message: Option<String>,
 }
@@ -33,14 +34,10 @@ impl DesktopApp {
             .list_assets()
             .unwrap_or_default()
             .into_iter()
-            .map(|asset| AssetListItem {
+            .map(|asset| PositionListItem {
                 id: asset.id,
-                label: format!(
-                    "{} ({})",
-                    asset.name,
-                    asset.reference.value
-                ),
-                selected: false,
+                label: format!("{} ({})", asset.name, asset.reference.value),
+                amount_input: String::new(),
             })
             .collect();
 
@@ -70,10 +67,10 @@ impl DesktopApp {
             Ok(assets) => {
                 self.allocation_record_assets = assets
                     .into_iter()
-                    .map(|asset| AssetListItem {
+                    .map(|asset| PositionListItem {
                         id: asset.id,
                         label: format!("{} ({})", asset.name, asset.reference.value),
-                        selected: false,
+                        amount_input: String::new(),
                     })
                     .collect();
             }
@@ -86,7 +83,7 @@ impl DesktopApp {
     fn reset_add_allocation_record_dialog(&mut self) {
         self.allocation_record_date = Zoned::now().date();
         for asset in &mut self.allocation_record_assets {
-            asset.selected = false;
+            asset.amount_input.clear();
         }
     }
 
@@ -214,13 +211,19 @@ impl eframe::App for DesktopApp {
                     ui.add(DatePickerButton::new(&mut self.allocation_record_date));
 
                     ui.add_space(12.0);
-                    ui.label("Assets:");
+                    ui.label("Positions:");
 
                     egui::ScrollArea::vertical()
-                        .max_height(220.0)
+                        .max_height(260.0)
                         .show(ui, |ui| {
                             for asset in &mut self.allocation_record_assets {
-                                ui.checkbox(&mut asset.selected, &asset.label);
+                                ui.horizontal(|ui| {
+                                    ui.add(
+                                        egui::TextEdit::singleline(&mut asset.amount_input)
+                                            .desired_width(80.0),
+                                    );
+                                    ui.label(&asset.label);
+                                });
                             }
                         });
 
@@ -228,23 +231,57 @@ impl eframe::App for DesktopApp {
 
                     ui.horizontal(|ui| {
                         if ui.button("OK").clicked() {
-                            let selected_asset_ids = self.allocation_record_assets
-                                .iter()
-                                .filter(|asset| asset.selected)
-                                .map(|asset| asset.id)
-                                .collect::<Vec<_>>();
+                            let mut positions = Vec::new();
+                            let mut validation_error = None;
 
-                            match self.asset_service.add_allocation_record(
-                                self.allocation_record_date,
-                                selected_asset_ids,
-                            ) {
-                                Ok(()) => {
-                                    self.status_message = Some("Allocation record was saved.".into());
-                                    self.reset_add_allocation_record_dialog();
-                                    should_close_after_show = true;
+                            for asset in &self.allocation_record_assets {
+                                let trimmed = asset.amount_input.trim();
+
+                                if trimmed.is_empty() {
+                                    continue;
                                 }
-                                Err(err) => {
-                                    self.status_message = Some(err.to_string());
+
+                                let amount = match trimmed.parse::<i64>() {
+                                    Ok(value) => value,
+                                    Err(_) => {
+                                        validation_error = Some(format!(
+                                            "Invalid amount for asset '{}'",
+                                            asset.label
+                                        ));
+                                        break;
+                                    }
+                                };
+
+                                if amount <= 0 {
+                                    validation_error = Some(format!(
+                                        "Amount must be greater than 0 for asset '{}'",
+                                        asset.label
+                                    ));
+                                    break;
+                                }
+
+                                positions.push(AllocationPosition {
+                                    asset_id: asset.id,
+                                    amount,
+                                });
+                            }
+
+                            if let Some(message) = validation_error {
+                                self.status_message = Some(message);
+                            } else {
+                                match self.asset_service.add_allocation_record(
+                                    self.allocation_record_date,
+                                    positions,
+                                ) {
+                                    Ok(()) => {
+                                        self.status_message =
+                                            Some("Allocation record was saved.".into());
+                                        self.reset_add_allocation_record_dialog();
+                                        should_close_after_show = true;
+                                    }
+                                    Err(err) => {
+                                        self.status_message = Some(err.to_string());
+                                    }
                                 }
                             }
                         }

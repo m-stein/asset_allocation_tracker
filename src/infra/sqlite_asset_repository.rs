@@ -55,9 +55,10 @@ impl SqliteAssetRepository {
 
         self.connection.execute(
             r#"
-            CREATE TABLE IF NOT EXISTS allocation_record_assets (
+            CREATE TABLE IF NOT EXISTS allocation_record_positions (
                 allocation_record_id INTEGER NOT NULL,
                 asset_id             INTEGER NOT NULL,
+                amount               INTEGER NOT NULL,
                 PRIMARY KEY (allocation_record_id, asset_id),
                 FOREIGN KEY (allocation_record_id) REFERENCES allocation_records(id),
                 FOREIGN KEY (asset_id) REFERENCES assets(id)
@@ -147,11 +148,11 @@ impl AssetRepository for SqliteAssetRepository {
 
         let allocation_record_id = tx.last_insert_rowid();
 
-        for asset_id in &record.asset_ids {
+        for position in &record.positions {
             tx.execute(
-                "INSERT INTO allocation_record_assets (allocation_record_id, asset_id)
-                 VALUES (?1, ?2)",
-                params![allocation_record_id, asset_id],
+                "INSERT INTO allocation_record_positions (allocation_record_id, asset_id, amount)
+                VALUES (?1, ?2, ?3)",
+                params![allocation_record_id, position.asset_id, position.amount],
             )
             .map_err(|e| AppError::Storage(e.to_string()))?;
         }

@@ -1,4 +1,4 @@
-use crate::domain::allocation_record::AllocationRecord;
+use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
@@ -46,17 +46,11 @@ impl AssetService {
     pub fn add_allocation_record(
         &mut self,
         date: Date,
-        asset_ids: Vec<i64>,
+        positions: Vec<AllocationPosition>,
     ) -> Result<(), AppError> {
-        if asset_ids.is_empty() {
-            return Err(AppError::Validation(
-                "At least one asset must be selected".into(),
-            ));
-        }
-        let record = AllocationRecord {
-            date: date,
-            asset_ids: asset_ids
-        };
+        let record = AllocationRecord::new(date, positions)
+            .map_err(AppError::Validation)?;
+
         self.repository.add_allocation_record(&record)
     }
 }
