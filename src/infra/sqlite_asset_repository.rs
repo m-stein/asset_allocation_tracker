@@ -1,12 +1,10 @@
 use std::fs;
 use std::path::Path;
-
-use rusqlite::Connection;
-
-use crate::app::asset_service::reference_type_to_str;
+use rusqlite::{params, Connection};
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
-use crate::domain::asset::Asset;
+use crate::domain::allocation_record::AllocationRecord;
+use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 
 pub struct SqliteAssetRepository {
     connection: Connection,
@@ -45,6 +43,29 @@ impl SqliteAssetRepository {
             )
             .map_err(|err| AppError::Storage(format!("Failed to initialize schema: {err}")))?;
 
+        self.connection.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS allocation_records (
+                id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL
+            )
+            "#,
+            [],
+        ).map_err(|err| AppError::Storage(format!("Failed to initialize schema: {err}")))?;
+
+        self.connection.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS allocation_record_assets (
+                allocation_record_id INTEGER NOT NULL,
+                asset_id             INTEGER NOT NULL,
+                PRIMARY KEY (allocation_record_id, asset_id),
+                FOREIGN KEY (allocation_record_id) REFERENCES allocation_records(id),
+                FOREIGN KEY (asset_id) REFERENCES assets(id)
+            )
+            "#,
+            [],
+        ).map_err(|err| AppError::Storage(format!("Failed to initialize schema: {err}")))?;
+
         Ok(())
     }
 }
@@ -54,7 +75,7 @@ impl AssetRepository for SqliteAssetRepository {
         self.connection
             .execute(
                 "INSERT INTO assets (name, reference_type, reference_value) VALUES (?1, ?2, ?3)",
-                rusqlite::params![
+                params![
                     asset.name,
                     reference_type_to_str(asset.reference.reference_type),
                     asset.reference.value
@@ -63,5 +84,98 @@ impl AssetRepository for SqliteAssetRepository {
             .map_err(|e| AppError::Storage(e.to_string()))?;
 
         Ok(())
+    }
+
+    fn list_assets(&self) -> Result<Vec<Asset>, AppError> {
+        let mut stmt = self.connection
+            .prepare(
+                "SELECT id, name, reference_type, reference_value
+                 FROM assets
+                 ORDER BY name ASC"
+            )
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let reference_type_str: String = row.get(2)?;
+                let reference_type = str_to_reference_type(&reference_type_str)
+                    .ok_or_else(|| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            2,
+                            rusqlite::types::Type::Text,
+                            Box::new(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "invalid reference type",
+                            )),
+                        )
+                    })?;
+
+                Ok(Asset {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    reference: AssetReference {
+                        reference_type,
+                        value: row.get(3)?,
+                    },
+                })
+            })
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let mut assets = Vec::new();
+        for row in rows {
+            assets.push(row.map_err(|e| AppError::Storage(e.to_string()))?);
+        }
+
+        Ok(assets)
+    }
+
+    fn add_allocation_record(
+        &mut self,
+        record: &AllocationRecord,
+    ) -> Result<(), AppError> {
+        let tx = self.connection
+            .transaction()
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let date_str = record.date.to_string();
+
+        tx.execute(
+            "INSERT INTO allocation_records (date) VALUES (?1)",
+            params![date_str],
+        )
+        .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let allocation_record_id = tx.last_insert_rowid();
+
+        for asset_id in &record.asset_ids {
+            tx.execute(
+                "INSERT INTO allocation_record_assets (allocation_record_id, asset_id)
+                 VALUES (?1, ?2)",
+                params![allocation_record_id, asset_id],
+            )
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+        }
+
+        tx.commit()
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        Ok(())
+    }
+}
+
+fn reference_type_to_str(rt: ReferenceType) -> &'static str {
+    match rt {
+        ReferenceType::Iban => "IBAN",
+        ReferenceType::Isin => "ISIN",
+        ReferenceType::Ticker => "TICKER",
+    }
+}
+
+fn str_to_reference_type(s: &str) -> Option<ReferenceType> {
+    match s {
+        "IBAN" => Some(ReferenceType::Iban),
+        "ISIN" => Some(ReferenceType::Isin),
+        "TICKER" => Some(ReferenceType::Ticker),
+        _ => None,
     }
 }
