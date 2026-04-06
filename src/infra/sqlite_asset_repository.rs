@@ -6,6 +6,7 @@ use crate::app::repository::AssetRepository;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::domain::category::Category;
+use crate::domain::category_value::AssetCategoryValue;
 
 pub struct SqliteAssetRepository {
     connection: Connection,
@@ -58,6 +59,18 @@ impl SqliteAssetRepository {
 
         self.connection.execute(
             r#"
+            CREATE TABLE IF NOT EXISTS asset_category_values (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_category_id INTEGER NOT NULL,
+                name              TEXT NOT NULL,
+                FOREIGN KEY (asset_category_id) REFERENCES asset_categories(id)
+            )
+            "#,
+            [],
+        ).map_err(|e| AppError::Storage(e.to_string()))?;
+
+        self.connection.execute(
+            r#"
             CREATE TABLE IF NOT EXISTS allocation_records (
                 id   INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT NOT NULL
@@ -85,6 +98,46 @@ impl SqliteAssetRepository {
 }
 
 impl AssetRepository for SqliteAssetRepository {
+
+    fn list_asset_categories(&self) -> Result<Vec<Category>, AppError> {
+        let mut stmt = self.connection
+            .prepare(
+                "SELECT id, name
+                FROM asset_categories
+                ORDER BY name ASC"
+            )
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(Category {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
+            })
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let mut categories = Vec::new();
+        for row in rows {
+            categories.push(row.map_err(|e| AppError::Storage(e.to_string()))?);
+        }
+
+        Ok(categories)
+    }
+
+    fn add_asset_category_value(
+        &mut self,
+        value: &AssetCategoryValue,
+    ) -> Result<(), AppError> {
+        self.connection.execute(
+            "INSERT INTO asset_category_values (asset_category_id, name)
+            VALUES (?1, ?2)",
+            rusqlite::params![value.asset_category_id, value.name],
+        ).map_err(|e| AppError::Storage(e.to_string()))?;
+
+        Ok(())
+    }
+
     fn add_asset(&mut self, asset: &Asset) -> Result<(), AppError> {
         self.connection
             .execute(

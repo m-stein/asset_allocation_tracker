@@ -9,10 +9,16 @@ use crate::app::asset_service::AssetService;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::ReferenceType;
 
-pub struct PositionListItem {
+pub struct PositionItem {
     pub id: i64,
     pub label: String,
     pub amount_input: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CategoryItem {
+    pub id: i64,
+    pub name: String,
 }
 
 pub struct DesktopApp {
@@ -25,7 +31,7 @@ pub struct DesktopApp {
 
     show_add_allocation_record_dialog: bool,
     allocation_record_date: Date,
-    allocation_record_assets: Vec<PositionListItem>,
+    allocation_record_assets: Vec<PositionItem>,
 
     show_allocation_dialog: bool,
     latest_allocation_record: Option<AllocationRecord>,
@@ -33,6 +39,11 @@ pub struct DesktopApp {
 
     category_name_input: String,
     show_add_category_dialog: bool,
+
+    show_add_category_value_dialog: bool,
+    category_value_name_input: String,
+    selected_category_id_for_value: Option<i64>,
+    asset_categories: Vec<CategoryItem>,
 
     status_message: Option<String>,
 }
@@ -43,7 +54,7 @@ impl DesktopApp {
             .list_assets()
             .unwrap_or_default()
             .into_iter()
-            .map(|asset| PositionListItem {
+            .map(|asset| PositionItem {
                 id: asset.id,
                 label: format!("{} ({})", asset.name, asset.reference.value),
                 amount_input: String::new(),
@@ -68,8 +79,52 @@ impl DesktopApp {
             category_name_input: String::new(),
             show_add_category_dialog: false,
 
+            show_add_category_value_dialog: false,
+            category_value_name_input: String::new(),
+            selected_category_id_for_value: None,
+            asset_categories: Vec::new(),
+
             status_message: None,
         }
+    }
+
+    fn reload_asset_categories(&mut self) {
+        match self.asset_service.list_asset_categories() {
+            Ok(categories) => {
+                self.asset_categories = categories
+                    .into_iter()
+                    .map(|category| CategoryItem {
+                        id: category.id,
+                        name: category.name,
+                    })
+                    .collect();
+
+                self.selected_category_id_for_value = self.asset_categories
+                    .first()
+                    .map(|category| category.id);
+            }
+            Err(err) => {
+                self.status_message = Some(err.to_string());
+            }
+        }
+    }
+
+    fn selected_category_name_for_value(&self) -> &str {
+        match self.selected_category_id_for_value {
+            Some(selected_id) => self.asset_categories
+                .iter()
+                .find(|category| category.id == selected_id)
+                .map(|category| category.name.as_str())
+                .unwrap_or("Select category"),
+            None => "Select category",
+        }
+    }
+
+    fn reset_add_category_value_dialog(&mut self) {
+        self.category_value_name_input.clear();
+        self.selected_category_id_for_value = self.asset_categories
+            .first()
+            .map(|category| category.id);
     }
 
     fn reset_add_asset_dialog(&mut self) {
@@ -91,7 +146,7 @@ impl DesktopApp {
                 for asset in assets {
                     self.asset_name_by_id.insert(asset.id, asset.name.clone());
 
-                    self.allocation_record_assets.push(PositionListItem {
+                    self.allocation_record_assets.push(PositionItem {
                         id: asset.id,
                         label: format!("{} ({})", asset.name, asset.reference.value),
                         amount_input: String::new(),
@@ -141,6 +196,13 @@ impl eframe::App for DesktopApp {
                     self.show_add_category_dialog = true;
                 }
 
+                if ui.button("Add Asset Category Value").clicked() {
+                    self.reload_asset_categories();
+                    self.reset_add_category_value_dialog();
+                    self.status_message = None;
+                    self.show_add_category_value_dialog = true;
+                }
+
                 if ui.button("Add Allocation Record").clicked() {
                     self.reload_asset_list_for_allocation_record();
                     self.reset_add_allocation_record_dialog();
@@ -169,6 +231,71 @@ impl eframe::App for DesktopApp {
                 ui.label(message);
             }
         });
+
+        if self.show_add_category_value_dialog {
+            let mut dialog_open = self.show_add_category_value_dialog;
+            let mut should_close_after_show = false;
+
+            egui::Window::new("Add Asset Category Value")
+                .collapsible(false)
+                .resizable(false)
+                .open(&mut dialog_open)
+                .show(&ctx, |ui| {
+                    ui.label("Category:");
+
+                    egui::ComboBox::from_id_salt("asset_category_value_category")
+                        .selected_text(self.selected_category_name_for_value())
+                        .show_ui(ui, |ui| {
+                            for category in &self.asset_categories {
+                                ui.selectable_value(
+                                    &mut self.selected_category_id_for_value,
+                                    Some(category.id),
+                                    &category.name,
+                                );
+                            }
+                        });
+
+                    ui.add_space(8.0);
+
+                    ui.label("Value name:");
+                    ui.text_edit_singleline(&mut self.category_value_name_input);
+
+                    ui.add_space(12.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.button("OK").clicked() {
+                            let Some(category_id) = self.selected_category_id_for_value else {
+                                self.status_message = Some("Please select a category.".into());
+                                return;
+                            };
+
+                            match self.asset_service.add_asset_category_value(
+                                category_id,
+                                self.category_value_name_input.clone(),
+                            ) {
+                                Ok(()) => {
+                                    self.status_message = Some(format!(
+                                        "Category value '{}' was saved.",
+                                        self.category_value_name_input.trim()
+                                    ));
+                                    self.reset_add_category_value_dialog();
+                                    should_close_after_show = true;
+                                }
+                                Err(err) => {
+                                    self.status_message = Some(err.to_string());
+                                }
+                            }
+                        }
+
+                        if ui.button("Cancel").clicked() {
+                            self.reset_add_category_value_dialog();
+                            should_close_after_show = true;
+                        }
+                    });
+                });
+
+            self.show_add_category_value_dialog = dialog_open && !should_close_after_show;
+        }
 
         if self.show_allocation_dialog {
             let mut dialog_open = self.show_allocation_dialog;
