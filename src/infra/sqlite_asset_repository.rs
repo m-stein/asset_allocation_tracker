@@ -5,6 +5,7 @@ use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
+use crate::domain::category::Category;
 
 pub struct SqliteAssetRepository {
     connection: Connection,
@@ -37,6 +38,18 @@ impl SqliteAssetRepository {
                     name TEXT NOT NULL,
                     reference_type TEXT NOT NULL,
                     reference_value TEXT NOT NULL
+                );
+                "#,
+                [],
+            )
+            .map_err(|err| AppError::Storage(format!("Failed to initialize schema: {err}")))?;
+
+        self.connection
+            .execute(
+                r#"
+                CREATE TABLE IF NOT EXISTS asset_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL
                 );
                 "#,
                 [],
@@ -81,6 +94,17 @@ impl AssetRepository for SqliteAssetRepository {
                     reference_type_to_str(asset.reference.reference_type),
                     asset.reference.value
                 ],
+            )
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        Ok(())
+    }
+
+    fn add_category(&mut self, category: &Category) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "INSERT INTO asset_categories (name) VALUES (?1)",
+                params![category.name],
             )
             .map_err(|e| AppError::Storage(e.to_string()))?;
 

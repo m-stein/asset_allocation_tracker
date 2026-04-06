@@ -2,6 +2,7 @@ use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
+use crate::domain::category::Category;
 use jiff::civil::Date;
 
 pub struct AssetService {
@@ -11,6 +12,25 @@ pub struct AssetService {
 impl AssetService {
     pub fn new(repository: Box<dyn AssetRepository>) -> Self {
         Self { repository }
+    }
+
+    pub fn add_category(
+        &mut self,
+        name: String
+    ) -> Result<(), AppError> {
+        let name = name.trim();
+
+        if name.is_empty() {
+            return Err(AppError::Validation(
+                "Category name must not be empty".into(),
+            ));
+        }
+
+        let category = Category {
+            name: name.to_string(),
+        };
+
+        self.repository.add_category(&category)
     }
 
     pub fn add_asset(

@@ -31,6 +31,9 @@ pub struct DesktopApp {
     latest_allocation_record: Option<AllocationRecord>,
     asset_name_by_id: HashMap<i64, String>,
 
+    category_name_input: String,
+    show_add_category_dialog: bool,
+
     status_message: Option<String>,
 }
 
@@ -62,6 +65,9 @@ impl DesktopApp {
             latest_allocation_record: None,
             asset_name_by_id: HashMap::new(),
 
+            category_name_input: String::new(),
+            show_add_category_dialog: false,
+
             status_message: None,
         }
     }
@@ -70,6 +76,10 @@ impl DesktopApp {
         self.asset_name_input.clear();
         self.reference_value_input.clear();
         self.selected_reference_type = ReferenceType::Isin;
+    }
+    
+    fn reset_add_category_dialog(&mut self) {
+        self.category_name_input.clear();
     }
 
     fn reload_asset_list_for_allocation_record(&mut self) {
@@ -123,6 +133,12 @@ impl eframe::App for DesktopApp {
                     self.reset_add_asset_dialog();
                     self.status_message = None;
                     self.show_add_asset_dialog = true;
+                }
+
+                if ui.button("Add Asset Category").clicked() {
+                    self.reset_add_category_dialog();
+                    self.status_message = None;
+                    self.show_add_category_dialog = true;
                 }
 
                 if ui.button("Add Allocation Record").clicked() {
@@ -204,6 +220,49 @@ impl eframe::App for DesktopApp {
                 });
 
             self.show_allocation_dialog = dialog_open;
+        }
+
+        if self.show_add_category_dialog {
+            let mut dialog_open = self.show_add_category_dialog;
+            let mut should_close_after_show = false;
+
+            egui::Window::new("Add Asset Category")
+                .collapsible(false)
+                .resizable(false)
+                .open(&mut dialog_open)
+                .show(&ctx, |ui| {
+                    ui.label("Category name:");
+                    ui.text_edit_singleline(&mut self.category_name_input);
+
+                    ui.add_space(12.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.button("OK").clicked() {
+                            match self.asset_service.add_category(
+                                self.category_name_input.clone(),
+                            ) {
+                                Ok(()) => {
+                                    self.status_message = Some(format!(
+                                        "Asset category '{}' was saved.",
+                                        self.category_name_input.trim()
+                                    ));
+                                    self.reset_add_category_dialog();
+                                    should_close_after_show = true;
+                                }
+                                Err(err) => {
+                                    self.status_message = Some(err.to_string());
+                                }
+                            }
+                        }
+
+                        if ui.button("Cancel").clicked() {
+                            self.reset_add_category_dialog();
+                            should_close_after_show = true;
+                        }
+                    });
+                });
+
+            self.show_add_category_dialog = dialog_open && !should_close_after_show;
         }
 
         if self.show_add_asset_dialog {
