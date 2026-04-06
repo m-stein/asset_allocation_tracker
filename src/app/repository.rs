@@ -9,4 +9,5 @@ pub trait AssetRepository {
         &mut self,
         record: &AllocationRecord,
     ) -> Result<(), AppError>;
+    fn get_latest_allocation_record(&self) -> Result<Option<AllocationRecord>, AppError>;
 }

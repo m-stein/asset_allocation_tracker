@@ -53,4 +53,10 @@ impl AssetService {
 
         self.repository.add_allocation_record(&record)
     }
+
+    pub fn get_latest_allocation_record(
+        &self,
+    ) -> Result<Option<AllocationRecord>, AppError> {
+        self.repository.get_latest_allocation_record()
+    }
 }

@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::Path;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, OptionalExtension, params};
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
-use crate::domain::allocation_record::AllocationRecord;
+use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 
 pub struct SqliteAssetRepository {
@@ -161,6 +161,48 @@ impl AssetRepository for SqliteAssetRepository {
             .map_err(|e| AppError::Storage(e.to_string()))?;
 
         Ok(())
+    }
+
+    fn get_latest_allocation_record(&self) -> Result<Option<AllocationRecord>, AppError> {
+        let latest_row: Option<(i64, String)> = self.connection
+            .query_row(
+                "SELECT id, date
+                FROM allocation_records
+                ORDER BY date DESC, id DESC
+                LIMIT 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let Some((record_id, date_str)) = latest_row else {
+            return Ok(None);
+        };
+
+        let date = jiff::civil::Date::strptime("%Y-%m-%d", &date_str)
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let mut stmt = self.connection.prepare(
+            "SELECT asset_id, amount
+            FROM allocation_record_positions
+            WHERE allocation_record_id = ?1
+            ORDER BY amount DESC, asset_id ASC"
+        ).map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let rows = stmt.query_map([record_id], |row| {
+            Ok(AllocationPosition {
+                asset_id: row.get(0)?,
+                amount: row.get(1)?,
+            })
+        }).map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let mut positions = Vec::new();
+        for row in rows {
+            positions.push(row.map_err(|e| AppError::Storage(e.to_string()))?);
+        }
+
+        Ok(Some(AllocationRecord { date, positions }))
     }
 }
 
