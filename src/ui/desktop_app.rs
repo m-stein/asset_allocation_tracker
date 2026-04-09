@@ -483,6 +483,7 @@ impl eframe::App for DesktopApp {
                                 self.asset_name_input.clone(),
                                 self.selected_reference_type,
                                 self.reference_value_input.clone(),
+                                &self.category_id_to_selected_value_id
                             ) {
                                 Ok(()) => {
                                     self.status_message = Some(format!(

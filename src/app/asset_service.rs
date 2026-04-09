@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::app::error::AppError;
@@ -40,6 +42,7 @@ impl AssetService {
         name: String,
         reference_type: ReferenceType,
         reference_value: String,
+        category_id_to_value_id: &HashMap<i64, Option<i64>>,
     ) -> Result<(), AppError> {
         let name = name.trim();
 
@@ -58,7 +61,7 @@ impl AssetService {
             reference,
         };
 
-        self.repository.add_asset(&asset)
+        self.repository.add_asset(&asset, category_id_to_value_id)
     }
     
     pub fn list_assets(&self) -> Result<Vec<Asset>, AppError> {
