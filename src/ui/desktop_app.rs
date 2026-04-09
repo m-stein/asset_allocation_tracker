@@ -50,17 +50,6 @@ pub struct DesktopApp {
 
 impl DesktopApp {
     pub fn new(asset_service: AssetService) -> Self {
-        let allocation_record_assets = asset_service
-            .list_assets()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|asset| PositionItem {
-                id: asset.id,
-                label: format!("{} ({})", asset.name, asset.reference.value),
-                amount_input: String::new(),
-            })
-            .collect();
-
         Self {
             asset_service,
             show_add_asset_dialog: false,
@@ -70,7 +59,7 @@ impl DesktopApp {
 
             show_add_allocation_record_dialog: false,
             allocation_record_date: Zoned::now().date(),
-            allocation_record_assets,
+            allocation_record_assets: Vec::new(),
 
             show_allocation_dialog: false,
             latest_allocation_record: None,
