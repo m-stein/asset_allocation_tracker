@@ -181,6 +181,7 @@ impl eframe::App for DesktopApp {
                 if ui.button("Add Asset").clicked() {
                     self.reset_add_asset_dialog();
                     self.reload_asset_categories();
+                    self.category_id_to_selected_value_id.clear();
                     self.status_message = None;
                     self.show_add_asset_dialog = true;
                 }
@@ -479,22 +480,37 @@ impl eframe::App for DesktopApp {
 
                     ui.horizontal(|ui| {
                         if ui.button("OK").clicked() {
-                            match self.asset_service.add_asset(
-                                self.asset_name_input.clone(),
-                                self.selected_reference_type,
-                                self.reference_value_input.clone(),
-                                &self.category_id_to_selected_value_id
-                            ) {
-                                Ok(()) => {
-                                    self.status_message = Some(format!(
-                                        "Asset '{}' was saved.",
-                                        self.asset_name_input.trim()
-                                    ));
-                                    self.reset_add_asset_dialog();
-                                    should_close_after_show = true;
-                                }
-                                Err(err) => {
-                                    self.status_message = Some(err.to_string());
+
+                            let mut category_value_ids: Vec<i64> = Vec::new();
+                            let mut category_value_not_set = false;
+                            for (_, valid_opt) in self.category_id_to_selected_value_id.iter() {
+                                if let Some(valid) = valid_opt {
+                                    category_value_ids.push(*valid)
+                                } else {
+                                    category_value_not_set = true;
+                                    break;
+                                };
+                            }
+                            if category_value_not_set {
+                                self.status_message = Some("All category values must be set".into());
+                            } else {
+                                match self.asset_service.add_asset(
+                                    self.asset_name_input.clone(),
+                                    self.selected_reference_type,
+                                    self.reference_value_input.clone(),
+                                    &category_value_ids
+                                ) {
+                                    Ok(()) => {
+                                        self.status_message = Some(format!(
+                                            "Asset '{}' was saved.",
+                                            self.asset_name_input.trim()
+                                        ));
+                                        self.reset_add_asset_dialog();
+                                        should_close_after_show = true;
+                                    }
+                                    Err(err) => {
+                                        self.status_message = Some(err.to_string());
+                                    }
                                 }
                             }
                         }

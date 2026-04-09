@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -98,11 +97,9 @@ impl SqliteAssetRepository {
             r#"
                 CREATE TABLE IF NOT EXISTS asset_category_value_assignments (
                     asset_id INTEGER NOT NULL,
-                    asset_category_id INTEGER NOT NULL,
                     asset_category_value_id INTEGER NOT NULL,
                     PRIMARY KEY (asset_id, asset_category_value_id),
                     FOREIGN KEY (asset_id) REFERENCES assets(id),
-                    FOREIGN KEY (asset_category_id) REFERENCES asset_categories(id)
                     FOREIGN KEY (asset_category_value_id) REFERENCES asset_category_values(id)
                 )
                 "#,
@@ -189,7 +186,7 @@ impl AssetRepository for SqliteAssetRepository {
         Ok(())
     }
 
-    fn add_asset(&mut self, asset: &Asset, category_id_to_value_id: &HashMap<i64, Option<i64>>) -> Result<(), AppError> {
+    fn add_asset(&mut self, asset: &Asset, category_value_ids: &Vec<i64>) -> Result<(), AppError> {
         let tx = self.connection
             .transaction()
             .map_err(|e| AppError::Storage(e.to_string()))?;
@@ -205,19 +202,14 @@ impl AssetRepository for SqliteAssetRepository {
         .map_err(|e| AppError::Storage(e.to_string()))?;
 
         let asset_id = tx.last_insert_rowid();
-        for (category_id, value_id) in category_id_to_value_id.iter() {
-            let Some(value_id) = value_id else {
-                return Err(AppError::Storage(
-                    "Category value must be set".into(),
-                ));
-            };
+        for category_value_id in category_value_ids.iter() {
             tx.execute(
                 "
                 INSERT INTO asset_category_value_assignments
-                (asset_id, asset_category_id, asset_category_value_id)
-                VALUES (?1, ?2, ?3)
+                (asset_id, asset_category_value_id)
+                VALUES (?1, ?2)
                 ",
-                params![asset_id, category_id, value_id],
+                params![asset_id, category_value_id],
             )
             .map_err(|e| AppError::Storage(e.to_string()))?;
         }
