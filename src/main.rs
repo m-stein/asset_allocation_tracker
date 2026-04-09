@@ -18,7 +18,7 @@ fn main() -> eframe::Result<()> {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([480.0, 220.0])
+            .with_maximized(true)
             .with_title("Asset Allocation Tracker"),
         ..Default::default()
     };
