@@ -99,6 +99,41 @@ impl SqliteAssetRepository {
 
 impl AssetRepository for SqliteAssetRepository {
 
+    fn list_asset_category_values(
+        &self,
+        category: &Category,
+    ) -> Result<Vec<AssetCategoryValue>, AppError> {
+        let mut stmt = self.connection
+            .prepare(
+                "
+                SELECT id, asset_category_id, name
+                FROM asset_category_values
+                WHERE asset_category_id = ?
+                ORDER BY name
+                ",
+            )
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let values_iter = stmt
+            .query_map(params![category.id], |row| {
+                Ok(AssetCategoryValue {
+                    id: row.get(0)?,
+                    asset_category_id: row.get(1)?,
+                    name: row.get(2)?,
+                })
+            })
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+
+        let mut values = Vec::new();
+        for value in values_iter {
+            values.push(
+                value.map_err(|e| AppError::Storage(e.to_string()))?
+            );
+        }
+
+        Ok(values)
+    }
+
     fn list_asset_categories(&self) -> Result<Vec<Category>, AppError> {
         let mut stmt = self.connection
             .prepare(

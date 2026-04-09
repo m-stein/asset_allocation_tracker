@@ -14,6 +14,7 @@ pub trait AssetRepository {
     ) -> Result<(), AppError>;
     fn get_latest_allocation_record(&self) -> Result<Option<AllocationRecord>, AppError>;
     fn list_asset_categories(&self) -> Result<Vec<Category>, AppError>;
+    fn list_asset_category_values(&self, category: &Category) -> Result<Vec<AssetCategoryValue>, AppError>;
     fn add_asset_category_value(
         &mut self,
         value: &AssetCategoryValue,

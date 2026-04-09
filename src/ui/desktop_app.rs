@@ -8,6 +8,7 @@ use jiff::Zoned;
 use crate::app::asset_service::AssetService;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::ReferenceType;
+use crate::domain::category::Category;
 
 pub struct PositionItem {
     pub id: i64,
@@ -45,6 +46,8 @@ pub struct DesktopApp {
     selected_category_id_for_value: Option<i64>,
     asset_categories: Vec<CategoryItem>,
 
+    category_id_to_selected_value_id: HashMap<i64, Option<i64>>, // category_id -> selected value id
+
     status_message: Option<String>,
 }
 
@@ -72,6 +75,8 @@ impl DesktopApp {
             category_value_name_input: String::new(),
             selected_category_id_for_value: None,
             asset_categories: Vec::new(),
+
+            category_id_to_selected_value_id: HashMap::new(),
 
             status_message: None,
         }
@@ -175,6 +180,7 @@ impl eframe::App for DesktopApp {
             ui.horizontal(|ui| {
                 if ui.button("Add Asset").clicked() {
                     self.reset_add_asset_dialog();
+                    self.reload_asset_categories();
                     self.status_message = None;
                     self.show_add_asset_dialog = true;
                 }
@@ -420,6 +426,54 @@ impl eframe::App for DesktopApp {
 
                     ui.label("Reference value:");
                     ui.text_edit_singleline(&mut self.reference_value_input);
+                    
+                    ui.add_space(12.0);
+
+                    egui::ScrollArea::vertical()
+                        .max_height(260.0)
+                        .show(ui, |ui| {
+                            for category_item in &mut self.asset_categories {
+                                ui.horizontal(|ui| {
+
+                                    // get possible values for this category
+                                    let category = Category { id: category_item.id, name: category_item.name.clone() };
+                                    let selectable_values = self
+                                        .asset_service
+                                        .list_asset_category_values(&category)
+                                        .unwrap_or_default();
+
+                                    // get category value ID of selected item or None
+                                    let selected_value_id = self
+                                        .category_id_to_selected_value_id
+                                        .entry(category_item.id)
+                                        .or_insert(None);
+
+                                    // get text of selected item or "Select..."
+                                    let selected_text = selected_value_id
+                                        .and_then(|id| {
+                                            selectable_values.iter().find(|v| v.id == id)
+                                        })
+                                        .map(|v| v.name.clone())
+                                        .unwrap_or_else(|| "Select...".to_string());
+
+                                    // show drop-down for selecting a value for this category
+                                    egui::ComboBox::from_id_salt(category_item.id)
+                                        .selected_text(selected_text)
+                                        .show_ui(ui, |ui| {
+                                            for value in &selectable_values {
+                                                ui.selectable_value(
+                                                    selected_value_id,
+                                                    Some(value.id),
+                                                    &value.name,
+                                                );
+                                            }
+                                        });
+                                        
+                                    // show category name to the right of the drop-down
+                                    ui.label(&category_item.name);
+                                });
+                            }
+                        });
 
                     ui.add_space(12.0);
 

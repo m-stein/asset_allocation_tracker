@@ -1,5 +1,6 @@
 #[derive(Debug, Clone)]
 pub struct AssetCategoryValue {
+    pub id: i64,
     pub asset_category_id: i64,
     pub name: String,
 }
@@ -17,6 +18,7 @@ impl AssetCategoryValue {
         }
 
         Ok(Self {
+            id: 0,
             asset_category_id,
             name: trimmed.to_string(),
         })
