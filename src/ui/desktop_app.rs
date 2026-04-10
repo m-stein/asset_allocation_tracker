@@ -46,6 +46,8 @@ pub struct DesktopApp {
     selected_category_id_for_value: Option<i64>,
     asset_categories: Vec<CategoryItem>,
 
+    allocation_diagram_category_id: Option<i64>,
+
     category_id_to_selected_value_id: HashMap<i64, Option<i64>>, // category_id -> selected value id
 
     status_message: Option<String>,
@@ -75,6 +77,8 @@ impl DesktopApp {
             category_value_name_input: String::new(),
             selected_category_id_for_value: None,
             asset_categories: Vec::new(),
+
+            allocation_diagram_category_id: None,
 
             category_id_to_selected_value_id: HashMap::new(),
 
@@ -111,6 +115,17 @@ impl DesktopApp {
                 .map(|category| category.name.as_str())
                 .unwrap_or("Select category"),
             None => "Select category",
+        }
+    }
+
+    fn allocation_diagram_category_selected_text(&self) -> &str {
+        match self.allocation_diagram_category_id {
+            Some(category_id) => self.asset_categories
+                .iter()
+                .find(|category| category.id == category_id)
+                .map(|category| category.name.as_str())
+                .unwrap_or("Select category..."),
+            None => "Select category...",
         }
     }
 
@@ -226,6 +241,21 @@ impl eframe::App for DesktopApp {
                 ui.add_space(12.0);
                 ui.label(message);
             }
+            ui.add_space(12.0);
+            ui.label("Allocation diagram:");
+
+            self.reload_asset_categories();
+            egui::ComboBox::from_id_salt("allocation_diagram_category")
+                .selected_text(self.allocation_diagram_category_selected_text())
+                .show_ui(ui, |ui| {
+                    for category in &self.asset_categories {
+                        ui.selectable_value(
+                            &mut self.allocation_diagram_category_id,
+                            Some(category.id),
+                            &category.name,
+                        );
+                    }
+                });
         });
 
         if self.show_add_category_value_dialog {
