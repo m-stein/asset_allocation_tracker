@@ -6,11 +6,12 @@ use crate::app::repository::AssetRepository;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::domain::category::Category;
-use crate::domain::category_value::AssetCategoryValue;
+use crate::domain::category_value::{AssetCategoryValue, CategoryDistribution};
 
 pub struct SqliteAssetRepository {
     connection: Connection,
 }
+
 
 impl SqliteAssetRepository {
     pub fn new(db_path: &str) -> Result<Self, AppError> {
@@ -111,6 +112,58 @@ impl SqliteAssetRepository {
 }
 
 impl AssetRepository for SqliteAssetRepository {
+
+    fn get_distribution_for_category(
+        &self,
+        category_id: i64,
+    ) -> Result<Vec<CategoryDistribution>, AppError> {
+
+        let mut stmt = self.connection.prepare(
+            r#"
+            WITH latest_record AS (
+                SELECT id
+                FROM allocation_records
+                ORDER BY date DESC
+                LIMIT 1
+            ),
+            total AS (
+                SELECT SUM(arp.amount) AS total_amount
+                FROM allocation_record_positions arp
+                JOIN latest_record lr ON arp.allocation_record_id = lr.id
+            )
+            SELECT
+                acv.id,
+                acv.name,
+                SUM(arp.amount) AS value_amount,
+                SUM(arp.amount) * 1.0 / total.total_amount AS percentage
+            FROM allocation_record_positions arp
+            JOIN latest_record lr ON arp.allocation_record_id = lr.id
+            JOIN assets a ON a.id = arp.asset_id
+            JOIN asset_category_value_assignments acva ON acva.asset_id = a.id
+            JOIN asset_category_values acv ON acv.id = acva.asset_category_value_id
+            JOIN total
+            WHERE acv.asset_category_id = ?1
+            GROUP BY acv.id, acv.name
+            ORDER BY value_amount DESC;
+            "#
+        )?;
+
+        let rows = stmt.query_map(params![category_id], |row| {
+            Ok(CategoryDistribution {
+                value_id: row.get(0)?,
+                value_name: row.get(1)?,
+                amount: row.get(2)?,
+                percentage: row.get(3)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+
+        Ok(result)
+    }
 
     fn list_asset_category_values(
         &self,

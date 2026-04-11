@@ -256,6 +256,24 @@ impl eframe::App for DesktopApp {
                         );
                     }
                 });
+
+            if let Some(category_id) = self.allocation_diagram_category_id {
+                match self.asset_service.get_distribution_for_category(category_id) {
+                    Ok(data) => {
+                        for entry in data {
+                            ui.label(format!(
+                                "{}: {} ({:.2}%)",
+                                entry.value_name,
+                                entry.amount,
+                                entry.percentage * 100.0
+                            ));
+                        }
+                    }
+                    Err(err) => {
+                        ui.colored_label(egui::Color32::RED, format!("Fehler: {}", err));
+                    }
+                }
+            }
         });
 
         if self.show_add_category_value_dialog {

@@ -3,7 +3,7 @@ use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
 use crate::domain::category::Category;
-use crate::domain::category_value::AssetCategoryValue;
+use crate::domain::category_value::{AssetCategoryValue, CategoryDistribution};
 use jiff::civil::Date;
 
 pub struct AssetService {
@@ -33,6 +33,13 @@ impl AssetService {
         };
 
         self.repository.add_category(&category)
+    }
+
+    pub fn get_distribution_for_category(
+        &self,
+        category_id: i64,
+    ) -> Result<Vec<CategoryDistribution>, AppError> {
+        self.repository.get_distribution_for_category(category_id)
     }
 
     pub fn add_asset(

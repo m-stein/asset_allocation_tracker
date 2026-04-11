@@ -17,3 +17,9 @@ impl Display for AppError {
 }
 
 impl Error for AppError {}
+
+impl From<rusqlite::Error> for AppError {
+    fn from(err: rusqlite::Error) -> Self {
+        AppError::Storage(err.to_string())
+    }
+}
