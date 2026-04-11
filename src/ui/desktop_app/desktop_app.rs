@@ -9,6 +9,7 @@ use crate::app::asset_service::AssetService;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::ReferenceType;
 use crate::domain::category::Category;
+use crate::domain::named_distribution::NamedDistribution;
 use crate::ui::desktop_app::pie_chart::draw_pie_chart;
 
 pub struct PositionItem {
@@ -52,7 +53,8 @@ pub struct DesktopApp {
     selected_category_id_for_value: Option<i64>,
     asset_categories: Vec<CategoryItem>,
 
-    allocation_diagram_category_id: Option<i64>,
+    alloc_diagram_category_id: Option<i64>,
+    alloc_diagram_data: Option<Vec<NamedDistribution>>,
 
     category_id_to_selected_value_id: HashMap<i64, Option<i64>>,
 
@@ -67,7 +69,7 @@ impl DesktopApp {
     const H2_SIZE: f32 = 24.0;
 
     pub fn new(asset_service: AssetService) -> Self {
-        Self {
+        let mut s = Self {
             asset_service,
             asset_name_input: String::new(),
             reference_value_input: String::new(),
@@ -89,14 +91,17 @@ impl DesktopApp {
             selected_category_id_for_value: None,
             asset_categories: Vec::new(),
 
-            allocation_diagram_category_id: None,
+            alloc_diagram_category_id: None,
+            alloc_diagram_data: None,
 
             category_id_to_selected_value_id: HashMap::new(),
 
             status_message: None,
 
-            page: DesktopApp::MAIN_PAGE,
-        }
+            page: Page::AllocationDiagram,
+        };
+        s.init_alocation_diagram_page();
+        s
     }
 
     fn reload_asset_categories(&mut self) {
@@ -126,19 +131,19 @@ impl DesktopApp {
                 .iter()
                 .find(|category| category.id == selected_id)
                 .map(|category| category.name.as_str())
-                .unwrap_or("Select category"),
-            None => "Select category",
+                .unwrap_or("Select..."),
+            None => "Select...",
         }
     }
 
     fn allocation_diagram_category_selected_text(&self) -> &str {
-        match self.allocation_diagram_category_id {
+        match self.alloc_diagram_category_id {
             Some(category_id) => self.asset_categories
                 .iter()
                 .find(|category| category.id == category_id)
                 .map(|category| category.name.as_str())
-                .unwrap_or("Select category..."),
-            None => "Select category...",
+                .unwrap_or("Select..."),
+            None => "Select...",
         }
     }
 
@@ -149,7 +154,7 @@ impl DesktopApp {
             .map(|category| category.id);
     }
 
-    fn reset_add_asset_dialog(&mut self) {
+    fn reset_add_asset_page(&mut self) {
         self.asset_name_input.clear();
         self.reference_value_input.clear();
         self.selected_reference_type = ReferenceType::Isin;
@@ -196,6 +201,10 @@ impl DesktopApp {
         }
     }
 
+    fn init_alocation_diagram_page(&mut self) {
+        self.reload_asset_categories();
+    }
+
     fn show_alocation_diagram_page(&mut self, ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Allocation Diagram").heading().size(Self::H2_SIZE));
@@ -203,13 +212,13 @@ impl DesktopApp {
 
         ui.label("Category:");
 
-        self.reload_asset_categories();
+        let prev_category_id = self.alloc_diagram_category_id;
         egui::ComboBox::from_id_salt("allocation_diagram_category")
             .selected_text(self.allocation_diagram_category_selected_text())
             .show_ui(ui, |ui| {
                 for category in &self.asset_categories {
                     ui.selectable_value(
-                        &mut self.allocation_diagram_category_id,
+                        &mut self.alloc_diagram_category_id,
                         Some(category.id),
                         &category.name,
                     );
@@ -217,34 +226,46 @@ impl DesktopApp {
             });
         ui.add_space(12.0);
 
-        if let Some(category_id) = self.allocation_diagram_category_id {
-            match self.asset_service.get_distribution_for_category(category_id) {
-                Ok(data) => {
-                    draw_pie_chart(ui, &data);
+        if prev_category_id != self.alloc_diagram_category_id {
+            if let Some(category_id) = self.alloc_diagram_category_id {
+                match self.asset_service.get_distribution_for_category(category_id) {
+                    Ok(data) => {
+                        self.alloc_diagram_data = Some(data)
+                    }
+                    Err(err) => {
+                        self.alloc_diagram_data = None;
+                        ui.colored_label(egui::Color32::RED, format!("Fehler: {}", err));
+                    }
                 }
-                Err(err) => {
-                    ui.colored_label(egui::Color32::RED, format!("Fehler: {}", err));
-                }
+            } else {
+                self.alloc_diagram_data = None;
             }
+            ui.add_space(12.0);
         }
-        ui.add_space(12.0);
+        if let Some(data) = self.alloc_diagram_data.as_ref() {
+            draw_pie_chart(ui, &data);
+        }
     }
 
-    fn show_page_button(&mut self, ui: &mut egui::Ui, page: Page, label: &str) {
+    fn show_page_button(&mut self, ui: &mut egui::Ui, page: Page, label: &str, init_page_fn: fn(&mut Self)) {
         if ui
             .selectable_label(self.page == page, label)
             .clicked()
         {
+            init_page_fn(self);
             self.page = page;
         }
     }
 
-    fn show_add_asset_page(&mut self, ui: &mut egui::Ui) {
+    fn init_add_asset_page(&mut self) {
 
-        self.reset_add_asset_dialog();
+        self.reset_add_asset_page();
         self.reload_asset_categories();
         self.category_id_to_selected_value_id.clear();
         self.status_message = None;
+    }
+
+    fn show_add_asset_page(&mut self, ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Add Asset").heading().size(Self::H2_SIZE));
         ui.add_space(12.0);
@@ -354,7 +375,7 @@ impl DesktopApp {
                                 "Asset '{}' was saved.",
                                 self.asset_name_input.trim()
                             ));
-                            self.reset_add_asset_dialog();
+                            self.reset_add_asset_page();
                             self.page = Self::MAIN_PAGE;
                         }
                         Err(err) => {
@@ -377,8 +398,8 @@ impl eframe::App for DesktopApp {
             ui.add_space(12.0);
 
             ui.horizontal(|ui| {
-                self.show_page_button(ui, Page::AllocationDiagram, "Allocation Diagram");
-                self.show_page_button(ui, Page::AddAsset, "Add Asset");
+                self.show_page_button(ui, Page::AllocationDiagram, "Allocation Diagram", Self::init_alocation_diagram_page);
+                self.show_page_button(ui, Page::AddAsset, "Add Asset", Self::init_add_asset_page);
                 if ui.button("Add Asset Category").clicked() {
                     self.reset_add_category_dialog();
                     self.status_message = None;
