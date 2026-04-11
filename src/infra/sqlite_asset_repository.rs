@@ -150,9 +150,8 @@ impl AssetRepository for SqliteAssetRepository {
 
         let rows = stmt.query_map(params![category_id], |row| {
             Ok(CategoryDistribution {
-                value_id: row.get(0)?,
                 value_name: row.get(1)?,
-                amount: row.get(2)?,
+                /* amount: row.get(2)?, */
                 percentage: row.get(3)?,
             })
         })?;
