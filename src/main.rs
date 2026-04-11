@@ -6,7 +6,7 @@ mod ui;
 use app::asset_service::AssetService;
 use eframe::egui;
 use infra::sqlite_asset_repository::SqliteAssetRepository;
-use ui::desktop_app::DesktopApp;
+use ui::desktop_app::desktop_app::DesktopApp;
 
 const DB_PATH: &str = "./data/allocation_records.sdb";
 

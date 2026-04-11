@@ -24,8 +24,3 @@ impl AssetCategoryValue {
         })
     }
 }
-
-pub struct CategoryDistribution {
-    pub value_name: String,
-    pub percentage: f64,
-}

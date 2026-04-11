@@ -2,7 +2,8 @@ use crate::app::error::AppError;
 use crate::domain::allocation_record::AllocationRecord;
 use crate::domain::asset::Asset;
 use crate::domain::category::Category;
-use crate::domain::category_value::{AssetCategoryValue, CategoryDistribution};
+use crate::domain::category_value::AssetCategoryValue;
+use crate::domain::named_distribution::NamedDistribution;
 
 pub trait AssetRepository {
     fn add_asset(&mut self, asset: &Asset, category_value_ids: &Vec<i64>) -> Result<(), AppError>;
@@ -22,5 +23,5 @@ pub trait AssetRepository {
     fn get_distribution_for_category(
         &self,
         category_id: i64,
-    ) -> Result<Vec<CategoryDistribution>, AppError>;
+    ) -> Result<Vec<NamedDistribution>, AppError>;
 }

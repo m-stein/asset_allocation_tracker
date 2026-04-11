@@ -6,7 +6,8 @@ use crate::app::repository::AssetRepository;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::domain::category::Category;
-use crate::domain::category_value::{AssetCategoryValue, CategoryDistribution};
+use crate::domain::category_value::AssetCategoryValue;
+use crate::domain::named_distribution::NamedDistribution;
 
 pub struct SqliteAssetRepository {
     connection: Connection,
@@ -116,7 +117,7 @@ impl AssetRepository for SqliteAssetRepository {
     fn get_distribution_for_category(
         &self,
         category_id: i64,
-    ) -> Result<Vec<CategoryDistribution>, AppError> {
+    ) -> Result<Vec<NamedDistribution>, AppError> {
 
         let mut stmt = self.connection.prepare(
             r#"
@@ -149,8 +150,8 @@ impl AssetRepository for SqliteAssetRepository {
         )?;
 
         let rows = stmt.query_map(params![category_id], |row| {
-            Ok(CategoryDistribution {
-                value_name: row.get(1)?,
+            Ok(NamedDistribution {
+                name: row.get(1)?,
                 /* amount: row.get(2)?, */
                 percentage: row.get(3)?,
             })
