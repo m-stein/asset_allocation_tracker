@@ -23,10 +23,15 @@ pub struct CategoryItem {
     pub name: String,
 }
 
+#[derive(PartialEq)]
+enum Page {
+    AllocationDiagram,
+    AddAsset,
+}
+
 pub struct DesktopApp {
     asset_service: AssetService,
 
-    show_add_asset_dialog: bool,
     asset_name_input: String,
     reference_value_input: String,
     selected_reference_type: ReferenceType,
@@ -52,13 +57,18 @@ pub struct DesktopApp {
     category_id_to_selected_value_id: HashMap<i64, Option<i64>>,
 
     status_message: Option<String>,
+
+    page: Page,
 }
 
 impl DesktopApp {
+    const MAIN_PAGE: Page = Page::AllocationDiagram;
+    const H1_SIZE: f32 = 32.0;
+    const H2_SIZE: f32 = 24.0;
+
     pub fn new(asset_service: AssetService) -> Self {
         Self {
             asset_service,
-            show_add_asset_dialog: false,
             asset_name_input: String::new(),
             reference_value_input: String::new(),
             selected_reference_type: ReferenceType::Isin,
@@ -84,6 +94,8 @@ impl DesktopApp {
             category_id_to_selected_value_id: HashMap::new(),
 
             status_message: None,
+
+            page: DesktopApp::MAIN_PAGE,
         }
     }
 
@@ -183,6 +195,177 @@ impl DesktopApp {
             ReferenceType::Ticker => "Ticker",
         }
     }
+
+    fn show_alocation_diagram_page(&mut self, ui: &mut egui::Ui) {
+
+        ui.label(egui::RichText::new("Allocation Diagram").heading().size(Self::H2_SIZE));
+        ui.add_space(12.0);
+
+        ui.label("Category:");
+
+        self.reload_asset_categories();
+        egui::ComboBox::from_id_salt("allocation_diagram_category")
+            .selected_text(self.allocation_diagram_category_selected_text())
+            .show_ui(ui, |ui| {
+                for category in &self.asset_categories {
+                    ui.selectable_value(
+                        &mut self.allocation_diagram_category_id,
+                        Some(category.id),
+                        &category.name,
+                    );
+                }
+            });
+        ui.add_space(12.0);
+
+        if let Some(category_id) = self.allocation_diagram_category_id {
+            match self.asset_service.get_distribution_for_category(category_id) {
+                Ok(data) => {
+                    draw_pie_chart(ui, &data);
+                }
+                Err(err) => {
+                    ui.colored_label(egui::Color32::RED, format!("Fehler: {}", err));
+                }
+            }
+        }
+        ui.add_space(12.0);
+    }
+
+    fn show_page_button(&mut self, ui: &mut egui::Ui, page: Page, label: &str) {
+        if ui
+            .selectable_label(self.page == page, label)
+            .clicked()
+        {
+            self.page = page;
+        }
+    }
+
+    fn show_add_asset_page(&mut self, ui: &mut egui::Ui) {
+
+        self.reset_add_asset_dialog();
+        self.reload_asset_categories();
+        self.category_id_to_selected_value_id.clear();
+        self.status_message = None;
+
+        ui.label(egui::RichText::new("Add Asset").heading().size(Self::H2_SIZE));
+        ui.add_space(12.0);
+
+        ui.label("Asset name:");
+        ui.text_edit_singleline(&mut self.asset_name_input);
+        ui.add_space(8.0);
+
+        ui.label("Reference type:");
+        egui::ComboBox::from_id_salt("reference_type")
+            .selected_text(Self::reference_type_label(self.selected_reference_type))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(
+                    &mut self.selected_reference_type,
+                    ReferenceType::Iban,
+                    Self::reference_type_label(ReferenceType::Iban),
+                );
+                ui.selectable_value(
+                    &mut self.selected_reference_type,
+                    ReferenceType::Isin,
+                    Self::reference_type_label(ReferenceType::Isin),
+                );
+                ui.selectable_value(
+                    &mut self.selected_reference_type,
+                    ReferenceType::Ticker,
+                    Self::reference_type_label(ReferenceType::Ticker),
+                );
+            });
+        ui.add_space(8.0);
+
+        ui.label("Reference value:");
+        ui.text_edit_singleline(&mut self.reference_value_input);
+        ui.add_space(12.0);
+
+        egui::ScrollArea::vertical()
+            .max_height(260.0)
+            .show(ui, |ui| {
+                for category_item in &mut self.asset_categories {
+                    ui.horizontal(|ui| {
+
+                        // get possible values for this category
+                        let category = Category { id: category_item.id, name: category_item.name.clone() };
+                        let selectable_values = self
+                            .asset_service
+                            .list_asset_category_values(&category)
+                            .unwrap_or_default();
+
+                        // get category value ID of selected item or None
+                        let selected_value_id = self
+                            .category_id_to_selected_value_id
+                            .entry(category_item.id)
+                            .or_insert(None);
+
+                        // get text of selected item or "Select..."
+                        let selected_text = selected_value_id
+                            .and_then(|id| {
+                                selectable_values.iter().find(|v| v.id == id)
+                            })
+                            .map(|v| v.name.clone())
+                            .unwrap_or_else(|| "Select...".to_string());
+
+                        // show drop-down for selecting a value for this category
+                        egui::ComboBox::from_id_salt(category_item.id)
+                            .selected_text(selected_text)
+                            .show_ui(ui, |ui| {
+                                for value in &selectable_values {
+                                    ui.selectable_value(
+                                        selected_value_id,
+                                        Some(value.id),
+                                        &value.name,
+                                    );
+                                }
+                            });
+                            
+                        // show category name to the right of the drop-down
+                        ui.label(&category_item.name);
+                    });
+                }
+            });
+
+        ui.add_space(12.0);
+
+        ui.horizontal(|ui| {
+            if ui.button("Save").clicked() {
+
+                let mut category_value_ids: Vec<i64> = Vec::new();
+                let mut category_value_not_set = false;
+                for (_, valid_opt) in self.category_id_to_selected_value_id.iter() {
+                    if let Some(valid) = valid_opt {
+                        category_value_ids.push(*valid)
+                    } else {
+                        category_value_not_set = true;
+                        break;
+                    };
+                }
+                if category_value_not_set {
+                    self.status_message = Some("All category values must be set".into());
+                } else {
+                    match self.asset_service.add_asset(
+                        self.asset_name_input.clone(),
+                        self.selected_reference_type,
+                        self.reference_value_input.clone(),
+                        &category_value_ids
+                    ) {
+                        Ok(()) => {
+                            self.status_message = Some(format!(
+                                "Asset '{}' was saved.",
+                                self.asset_name_input.trim()
+                            ));
+                            self.reset_add_asset_dialog();
+                            self.page = Self::MAIN_PAGE;
+                        }
+                        Err(err) => {
+                            self.status_message = Some(err.to_string());
+                        }
+                    }
+                }
+            }
+        });
+        ui.add_space(12.0);
+    }
 }
 
 impl eframe::App for DesktopApp {
@@ -190,18 +373,12 @@ impl eframe::App for DesktopApp {
         let ctx = ui.ctx().clone();
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            ui.heading("Asset Allocation Tracker");
+            ui.label(egui::RichText::new("Asset Allocation Tracker").heading().size(Self::H1_SIZE));
             ui.add_space(12.0);
 
             ui.horizontal(|ui| {
-                if ui.button("Add Asset").clicked() {
-                    self.reset_add_asset_dialog();
-                    self.reload_asset_categories();
-                    self.category_id_to_selected_value_id.clear();
-                    self.status_message = None;
-                    self.show_add_asset_dialog = true;
-                }
-
+                self.show_page_button(ui, Page::AllocationDiagram, "Allocation Diagram");
+                self.show_page_button(ui, Page::AddAsset, "Add Asset");
                 if ui.button("Add Asset Category").clicked() {
                     self.reset_add_category_dialog();
                     self.status_message = None;
@@ -237,36 +414,16 @@ impl eframe::App for DesktopApp {
                     }
                 }
             });
-
-            if let Some(message) = &self.status_message {
-                ui.add_space(12.0);
-                ui.label(message);
-            }
             ui.add_space(12.0);
-            ui.label("Allocation diagram:");
 
-            self.reload_asset_categories();
-            egui::ComboBox::from_id_salt("allocation_diagram_category")
-                .selected_text(self.allocation_diagram_category_selected_text())
-                .show_ui(ui, |ui| {
-                    for category in &self.asset_categories {
-                        ui.selectable_value(
-                            &mut self.allocation_diagram_category_id,
-                            Some(category.id),
-                            &category.name,
-                        );
-                    }
-                });
-
-            if let Some(category_id) = self.allocation_diagram_category_id {
-                match self.asset_service.get_distribution_for_category(category_id) {
-                    Ok(data) => {
-                        draw_pie_chart(ui, &data);
-                    }
-                    Err(err) => {
-                        ui.colored_label(egui::Color32::RED, format!("Fehler: {}", err));
-                    }
-                }
+            match self.page {
+                Page::AddAsset => self.show_add_asset_page(ui),
+                Page::AllocationDiagram => self.show_alocation_diagram_page(ui),
+            }
+            ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
+            ui.add_space(12.0);
+            if let Some(message) = &self.status_message {
+                ui.label(message);
             }
         });
 
@@ -428,143 +585,6 @@ impl eframe::App for DesktopApp {
                 });
 
             self.show_add_category_dialog = dialog_open && !should_close_after_show;
-        }
-
-        if self.show_add_asset_dialog {
-            let mut dialog_open = self.show_add_asset_dialog;
-            let mut should_close_after_show = false;
-
-            egui::Window::new("Add Asset")
-                .collapsible(false)
-                .resizable(false)
-                .open(&mut dialog_open)
-                .show(&ctx, |ui| {
-                    ui.label("Asset name:");
-                    ui.text_edit_singleline(&mut self.asset_name_input);
-
-                    ui.add_space(8.0);
-
-                    ui.label("Reference type:");
-                    egui::ComboBox::from_id_salt("reference_type")
-                        .selected_text(Self::reference_type_label(self.selected_reference_type))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.selected_reference_type,
-                                ReferenceType::Iban,
-                                Self::reference_type_label(ReferenceType::Iban),
-                            );
-                            ui.selectable_value(
-                                &mut self.selected_reference_type,
-                                ReferenceType::Isin,
-                                Self::reference_type_label(ReferenceType::Isin),
-                            );
-                            ui.selectable_value(
-                                &mut self.selected_reference_type,
-                                ReferenceType::Ticker,
-                                Self::reference_type_label(ReferenceType::Ticker),
-                            );
-                        });
-
-                    ui.add_space(8.0);
-
-                    ui.label("Reference value:");
-                    ui.text_edit_singleline(&mut self.reference_value_input);
-                    
-                    ui.add_space(12.0);
-
-                    egui::ScrollArea::vertical()
-                        .max_height(260.0)
-                        .show(ui, |ui| {
-                            for category_item in &mut self.asset_categories {
-                                ui.horizontal(|ui| {
-
-                                    // get possible values for this category
-                                    let category = Category { id: category_item.id, name: category_item.name.clone() };
-                                    let selectable_values = self
-                                        .asset_service
-                                        .list_asset_category_values(&category)
-                                        .unwrap_or_default();
-
-                                    // get category value ID of selected item or None
-                                    let selected_value_id = self
-                                        .category_id_to_selected_value_id
-                                        .entry(category_item.id)
-                                        .or_insert(None);
-
-                                    // get text of selected item or "Select..."
-                                    let selected_text = selected_value_id
-                                        .and_then(|id| {
-                                            selectable_values.iter().find(|v| v.id == id)
-                                        })
-                                        .map(|v| v.name.clone())
-                                        .unwrap_or_else(|| "Select...".to_string());
-
-                                    // show drop-down for selecting a value for this category
-                                    egui::ComboBox::from_id_salt(category_item.id)
-                                        .selected_text(selected_text)
-                                        .show_ui(ui, |ui| {
-                                            for value in &selectable_values {
-                                                ui.selectable_value(
-                                                    selected_value_id,
-                                                    Some(value.id),
-                                                    &value.name,
-                                                );
-                                            }
-                                        });
-                                        
-                                    // show category name to the right of the drop-down
-                                    ui.label(&category_item.name);
-                                });
-                            }
-                        });
-
-                    ui.add_space(12.0);
-
-                    ui.horizontal(|ui| {
-                        if ui.button("OK").clicked() {
-
-                            let mut category_value_ids: Vec<i64> = Vec::new();
-                            let mut category_value_not_set = false;
-                            for (_, valid_opt) in self.category_id_to_selected_value_id.iter() {
-                                if let Some(valid) = valid_opt {
-                                    category_value_ids.push(*valid)
-                                } else {
-                                    category_value_not_set = true;
-                                    break;
-                                };
-                            }
-                            if category_value_not_set {
-                                self.status_message = Some("All category values must be set".into());
-                            } else {
-                                match self.asset_service.add_asset(
-                                    self.asset_name_input.clone(),
-                                    self.selected_reference_type,
-                                    self.reference_value_input.clone(),
-                                    &category_value_ids
-                                ) {
-                                    Ok(()) => {
-                                        self.status_message = Some(format!(
-                                            "Asset '{}' was saved.",
-                                            self.asset_name_input.trim()
-                                        ));
-                                        self.reset_add_asset_dialog();
-                                        should_close_after_show = true;
-                                    }
-                                    Err(err) => {
-                                        self.status_message = Some(err.to_string());
-                                    }
-                                }
-                            }
-                        }
-
-                        if ui.button("Cancel").clicked() {
-                            self.reset_add_asset_dialog();
-                            should_close_after_show = true;
-                        }
-                    });
-                });
-
-            self.show_add_asset_dialog = dialog_open && !should_close_after_show;
         }
 
         if self.show_add_allocation_record_dialog {
