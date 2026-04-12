@@ -1,29 +1,8 @@
-use crate::domain::reference_type::ReferenceType;
+use crate::domain::asset_reference::AssetReference;
 
 #[derive(Debug, Clone)]
 pub struct Asset {
     pub id: i64,
     pub name: String,
     pub reference: AssetReference,
-}
-
-#[derive(Debug, Clone)]
-pub struct AssetReference {
-    pub reference_type: ReferenceType,
-    pub value: String,
-}
-
-impl AssetReference {
-    pub fn new(reference_type: ReferenceType, value: String) -> Result<Self, String> {
-        let trimmed = value.trim();
-
-        if trimmed.is_empty() {
-            return Err("Reference value must not be empty".into());
-        }
-
-        Ok(Self {
-            reference_type,
-            value: trimmed.to_string(),
-        })
-    }
 }
