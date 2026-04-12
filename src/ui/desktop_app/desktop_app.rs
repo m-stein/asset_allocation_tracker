@@ -43,7 +43,6 @@ pub struct DesktopApp {
     allocation_record_date: Date,
     allocation_record_assets: Vec<PositionItem>,
 
-    show_allocation_dialog: bool,
     latest_allocation_record: Option<AllocationRecord>,
     asset_name_by_id: HashMap<i64, String>,
 
@@ -78,7 +77,6 @@ impl DesktopApp {
             allocation_record_date: Zoned::now().date(),
             allocation_record_assets: Vec::new(),
 
-            show_allocation_dialog: false,
             latest_allocation_record: None,
             asset_name_by_id: HashMap::new(),
 
@@ -98,7 +96,22 @@ impl DesktopApp {
             page: Page::AllocationDiagram,
         };
         s.init_alocation_diagram_page();
+        s.reload_latest_allocation_record();
+        s.reload_asset_list_for_allocation_record();
         s
+    }
+
+    fn reload_latest_allocation_record(&mut self) {
+        match self.asset_service.get_latest_allocation_record() {
+            Ok(record) => {
+                self.latest_allocation_record = record;
+                self.status_message = None;
+            }
+            Err(err) => {
+                self.latest_allocation_record = None;
+                self.status_message = Some(err.to_string());
+            }
+        }
     }
 
     fn reload_asset_categories(&mut self) {
@@ -139,8 +152,8 @@ impl DesktopApp {
                 .iter()
                 .find(|category| category.id == category_id)
                 .map(|category| category.name.as_str())
-                .unwrap_or("Select..."),
-            None => "Select...",
+                .unwrap_or("Position"),
+            None => "Position",
         }
     }
 
@@ -205,6 +218,9 @@ impl DesktopApp {
     }
 
     fn show_add_allocation_record_page(&mut self, ui: &mut egui::Ui) {
+
+        ui.label(egui::RichText::new("Add Allocation Record").heading().size(Self::H2_SIZE));
+        ui.add_space(12.0);
 
         ui.label("Date:");
         ui.add(DatePickerButton::new(&mut self.allocation_record_date));
@@ -289,7 +305,7 @@ impl DesktopApp {
         self.reload_asset_categories();
     }
 
-    fn show_alocation_diagram_page(&mut self, ui: &mut egui::Ui) {
+    fn show_allocation_diagram_page(&mut self, ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Allocation Diagram").heading().size(Self::H2_SIZE));
         ui.add_space(12.0);
@@ -307,6 +323,11 @@ impl DesktopApp {
                         &category.name,
                     );
                 }
+                ui.selectable_value(
+                    &mut self.alloc_diagram_category_id,
+                    None,
+                    "Position",
+                );
             });
         ui.add_space(12.0);
 
@@ -318,16 +339,53 @@ impl DesktopApp {
                     }
                     Err(err) => {
                         self.alloc_diagram_data = None;
-                        ui.colored_label(egui::Color32::RED, format!("Fehler: {}", err));
+                        self.status_message = Some(err.to_string());
                     }
                 }
             } else {
                 self.alloc_diagram_data = None;
+                self.reload_latest_allocation_record();
             }
             ui.add_space(12.0);
         }
         if let Some(data) = self.alloc_diagram_data.as_ref() {
             draw_pie_chart(ui, &data);
+        } else if let Some(record) = &self.latest_allocation_record {
+            let total: i64 = record.positions.iter().map(|p| p.amount).sum();
+
+            if total <= 0 {
+                ui.label("The latest allocation record contains no positive positions.");
+                return;
+            }
+
+            ui.label(format!(
+                "Record from {}:",
+                record.date
+            ));
+            ui.add_space(10.0);
+
+            for position in &record.positions {
+                let asset_name = self.asset_name_by_id
+                    .get(&position.asset_id)
+                    .map(|s| s.as_str())
+                    .unwrap_or("Unknown asset");
+
+                let percentage = (position.amount as f64 / total as f64) * 100.0;
+                let fraction = position.amount as f32 / total as f32;
+
+                ui.label(format!(
+                    "{} - {} ({:.1}%)",
+                    asset_name, position.amount, percentage
+                ));
+
+                ui.add(
+                    egui::ProgressBar::new(fraction)
+                        .desired_width(320.0)
+                        .text(format!("{:.1}%", percentage)),
+                );
+
+                ui.add_space(6.0);
+            }
         }
     }
 
@@ -353,6 +411,10 @@ impl DesktopApp {
     }
     
     fn show_add_category_value_page(&mut self, ui: &mut egui::Ui) {
+
+        ui.label(egui::RichText::new("Add Category Value").heading().size(Self::H2_SIZE));
+        ui.add_space(12.0);
+
         ui.label("Category:");
         egui::ComboBox::from_id_salt("asset_category_value_category")
             .selected_text(self.selected_category_name_for_value())
@@ -393,8 +455,10 @@ impl DesktopApp {
     }
 
     fn show_add_category_page(&mut self, ui: &mut egui::Ui) {
+
         ui.label(egui::RichText::new("Add Category").heading().size(Self::H2_SIZE));
         ui.add_space(12.0);
+
         ui.label("Name:");
         ui.text_edit_singleline(&mut self.category_name_input);
         ui.add_space(12.0);
@@ -544,8 +608,6 @@ impl DesktopApp {
 
 impl eframe::App for DesktopApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let ctx = ui.ctx().clone();
-
         egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.label(egui::RichText::new("Asset Allocation Tracker").heading().size(Self::H1_SIZE));
             ui.add_space(12.0);
@@ -556,89 +618,23 @@ impl eframe::App for DesktopApp {
                 self.show_page_button(ui, Page::AddCategory, "Add Category", Self::init_add_category_page);
                 self.show_page_button(ui, Page::AddCategoryValue, "Add Category Value", Self::init_add_category_value_page);
                 self.show_page_button(ui, Page::AddAllocationRecord, "Add Allocation Record", Self::init_add_allocation_record_page);
-
-                if ui.button("Show Allocation").clicked() {
-                    self.reload_asset_list_for_allocation_record();
-
-                    match self.asset_service.get_latest_allocation_record() {
-                        Ok(record) => {
-                            self.latest_allocation_record = record;
-                            self.status_message = None;
-                            self.show_allocation_dialog = true;
-                        }
-                        Err(err) => {
-                            self.status_message = Some(err.to_string());
-                        }
-                    }
-                }
             });
-            ui.add_space(12.0);
+            ui.add_space(20.0);
 
             match self.page {
                 Page::AddAsset => self.show_add_asset_page(ui),
-                Page::AllocationDiagram => self.show_alocation_diagram_page(ui),
+                Page::AllocationDiagram => self.show_allocation_diagram_page(ui),
                 Page::AddCategory => self.show_add_category_page(ui),
                 Page::AddCategoryValue => self.show_add_category_value_page(ui),
                 Page::AddAllocationRecord => self.show_add_allocation_record_page(ui),
             }
-            ui.add_space(12.0);
+            ui.add_space(20.0);
+
             ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
             ui.add_space(12.0);
             if let Some(message) = &self.status_message {
                 ui.label(message);
             }
         });
-
-        if self.show_allocation_dialog {
-            let mut dialog_open = self.show_allocation_dialog;
-
-            egui::Window::new("Current Allocation")
-                .collapsible(false)
-                .resizable(true)
-                .open(&mut dialog_open)
-                .show(&ctx, |ui| {
-                    if let Some(record) = &self.latest_allocation_record {
-                        let total: i64 = record.positions.iter().map(|p| p.amount).sum();
-
-                        if total <= 0 {
-                            ui.label("The latest allocation record contains no positive positions.");
-                            return;
-                        }
-
-                        ui.label(format!(
-                            "Based on the latest allocation record from {}:",
-                            record.date
-                        ));
-                        ui.add_space(10.0);
-
-                        for position in &record.positions {
-                            let asset_name = self.asset_name_by_id
-                                .get(&position.asset_id)
-                                .map(|s| s.as_str())
-                                .unwrap_or("Unknown asset");
-
-                            let percentage = (position.amount as f64 / total as f64) * 100.0;
-                            let fraction = position.amount as f32 / total as f32;
-
-                            ui.label(format!(
-                                "{} - {} ({:.1}%)",
-                                asset_name, position.amount, percentage
-                            ));
-
-                            ui.add(
-                                egui::ProgressBar::new(fraction)
-                                    .desired_width(320.0)
-                                    .text(format!("{:.1}%", percentage)),
-                            );
-
-                            ui.add_space(6.0);
-                        }
-                    } else {
-                        ui.label("No allocation record found.");
-                    }
-                });
-
-            self.show_allocation_dialog = dialog_open;
-        }
     }
 }
