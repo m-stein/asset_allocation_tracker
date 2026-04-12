@@ -389,11 +389,18 @@ impl DesktopApp {
         }
     }
 
-    fn show_page_button(&mut self, ui: &mut egui::Ui, page: Page, label: &str, init_page_fn: fn(&mut Self)) {
-        if ui
-            .selectable_label(self.page == page, label)
-            .clicked()
-        {
+    fn show_page_button(
+        &mut self,
+        ui: &mut egui::Ui,
+        page: Page,
+        label: &str,
+        init_page_fn: fn(&mut Self),
+    ) {
+        let response = ui.add_sized(
+            [180.0, 20.0],
+            egui::Button::selectable(self.page == page, label),
+        );
+        if response.clicked() {
             init_page_fn(self);
             self.page = page;
         }
@@ -610,31 +617,33 @@ impl eframe::App for DesktopApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.label(egui::RichText::new("Asset Allocation Tracker").heading().size(Self::H1_SIZE));
-            ui.add_space(12.0);
-
+            ui.add_space(20.0);
             ui.horizontal(|ui| {
-                self.show_page_button(ui, Page::AllocationDiagram, "Allocation Diagram", Self::init_alocation_diagram_page);
-                self.show_page_button(ui, Page::AddAsset, "Add Asset", Self::init_add_asset_page);
-                self.show_page_button(ui, Page::AddCategory, "Add Category", Self::init_add_category_page);
-                self.show_page_button(ui, Page::AddCategoryValue, "Add Category Value", Self::init_add_category_value_page);
-                self.show_page_button(ui, Page::AddAllocationRecord, "Add Allocation Record", Self::init_add_allocation_record_page);
+                ui.vertical(|ui| {
+                    self.show_page_button(ui, Page::AllocationDiagram, "Allocation Diagram", Self::init_alocation_diagram_page);
+                    self.show_page_button(ui, Page::AddAsset, "Add Asset", Self::init_add_asset_page);
+                    self.show_page_button(ui, Page::AddCategory, "Add Category", Self::init_add_category_page);
+                    self.show_page_button(ui, Page::AddCategoryValue, "Add Category Value", Self::init_add_category_value_page);
+                    self.show_page_button(ui, Page::AddAllocationRecord, "Add Allocation Record", Self::init_add_allocation_record_page);
+                });
+                ui.add_space(20.0);
+                ui.vertical(|ui| {
+                    match self.page {
+                        Page::AddAsset => self.show_add_asset_page(ui),
+                        Page::AllocationDiagram => self.show_allocation_diagram_page(ui),
+                        Page::AddCategory => self.show_add_category_page(ui),
+                        Page::AddCategoryValue => self.show_add_category_value_page(ui),
+                        Page::AddAllocationRecord => self.show_add_allocation_record_page(ui),
+                    }
+                    ui.add_space(20.0);
+
+                    ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
+                    ui.add_space(12.0);
+                    if let Some(message) = &self.status_message {
+                        ui.label(message);
+                    }
+                });
             });
-            ui.add_space(20.0);
-
-            match self.page {
-                Page::AddAsset => self.show_add_asset_page(ui),
-                Page::AllocationDiagram => self.show_allocation_diagram_page(ui),
-                Page::AddCategory => self.show_add_category_page(ui),
-                Page::AddCategoryValue => self.show_add_category_value_page(ui),
-                Page::AddAllocationRecord => self.show_add_allocation_record_page(ui),
-            }
-            ui.add_space(20.0);
-
-            ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
-            ui.add_space(12.0);
-            if let Some(message) = &self.status_message {
-                ui.label(message);
-            }
         });
     }
 }
