@@ -30,6 +30,7 @@ enum Page {
     AddAsset,
     AddCategory,
     AddCategoryValue,
+    AddAllocationRecord,
 }
 
 pub struct DesktopApp {
@@ -39,7 +40,6 @@ pub struct DesktopApp {
     reference_value_input: String,
     selected_reference_type: AssetReferenceType,
 
-    show_add_allocation_record_dialog: bool,
     allocation_record_date: Date,
     allocation_record_assets: Vec<PositionItem>,
 
@@ -75,7 +75,6 @@ impl DesktopApp {
             reference_value_input: String::new(),
             selected_reference_type: AssetReferenceType::Isin,
 
-            show_add_allocation_record_dialog: false,
             allocation_record_date: Zoned::now().date(),
             allocation_record_assets: Vec::new(),
 
@@ -184,7 +183,7 @@ impl DesktopApp {
         }
     }
 
-    fn reset_add_allocation_record_dialog(&mut self) {
+    fn reset_add_allocation_record_page(&mut self) {
         self.allocation_record_date = Zoned::now().date();
         for asset in &mut self.allocation_record_assets {
             asset.amount_input.clear();
@@ -196,6 +195,93 @@ impl DesktopApp {
             AssetReferenceType::Iban => "IBAN",
             AssetReferenceType::Isin => "ISIN",
             AssetReferenceType::Ticker => "Ticker",
+        }
+    }
+
+    fn init_add_allocation_record_page(&mut self) {
+        self.reload_asset_list_for_allocation_record();
+        self.reset_add_allocation_record_page();
+        self.status_message = None;
+    }
+
+    fn show_add_allocation_record_page(&mut self, ui: &mut egui::Ui) {
+
+        ui.label("Date:");
+        ui.add(DatePickerButton::new(&mut self.allocation_record_date));
+
+        ui.add_space(12.0);
+        ui.label("Positions:");
+
+        egui::ScrollArea::vertical()
+            .max_height(260.0)
+            .show(ui, |ui| {
+                for asset in &mut self.allocation_record_assets {
+                    ui.horizontal(|ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut asset.amount_input)
+                                .desired_width(80.0),
+                        );
+                        ui.label(&asset.label);
+                    });
+                }
+            });
+
+        ui.add_space(12.0);
+        if ui.button("Save").clicked() {
+            let mut positions = Vec::new();
+            let mut validation_error = None;
+
+            for asset in &self.allocation_record_assets {
+                let trimmed = asset.amount_input.trim();
+
+                if trimmed.is_empty() {
+                    continue;
+                }
+
+                let amount = match trimmed.parse::<i64>() {
+                    Ok(value) => value,
+                    Err(_) => {
+                        validation_error = Some(format!(
+                            "Invalid amount for asset '{}'",
+                            asset.label
+                        ));
+                        break;
+                    }
+                };
+
+                if amount <= 0 {
+                    validation_error = Some(format!(
+                        "Amount must be greater than 0 for asset '{}'",
+                        asset.label
+                    ));
+                    break;
+                }
+
+                positions.push(AllocationPosition {
+                    asset_id: asset.id,
+                    amount,
+                });
+            }
+
+            if let Some(message) = validation_error {
+                self.status_message = Some(message);
+            } else {
+                match self.asset_service.add_allocation_record(
+                    self.allocation_record_date,
+                    positions,
+                ) {
+                    Ok(()) => {
+                        self.status_message = Some(format!(
+                            "Allocation record '{}' was saved.",
+                            self.allocation_record_date.to_string()
+                        ));
+                        self.reset_add_allocation_record_page();
+                    }
+                    Err(err) => {
+                        self.status_message = Some(err.to_string());
+                    }
+                }
+            }
         }
     }
 
@@ -469,13 +555,7 @@ impl eframe::App for DesktopApp {
                 self.show_page_button(ui, Page::AddAsset, "Add Asset", Self::init_add_asset_page);
                 self.show_page_button(ui, Page::AddCategory, "Add Category", Self::init_add_category_page);
                 self.show_page_button(ui, Page::AddCategoryValue, "Add Category Value", Self::init_add_category_value_page);
-
-                if ui.button("Add Allocation Record").clicked() {
-                    self.reload_asset_list_for_allocation_record();
-                    self.reset_add_allocation_record_dialog();
-                    self.status_message = None;
-                    self.show_add_allocation_record_dialog = true;
-                }
+                self.show_page_button(ui, Page::AddAllocationRecord, "Add Allocation Record", Self::init_add_allocation_record_page);
 
                 if ui.button("Show Allocation").clicked() {
                     self.reload_asset_list_for_allocation_record();
@@ -499,6 +579,7 @@ impl eframe::App for DesktopApp {
                 Page::AllocationDiagram => self.show_alocation_diagram_page(ui),
                 Page::AddCategory => self.show_add_category_page(ui),
                 Page::AddCategoryValue => self.show_add_category_value_page(ui),
+                Page::AddAllocationRecord => self.show_add_allocation_record_page(ui),
             }
             ui.add_space(12.0);
             ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
@@ -558,104 +639,6 @@ impl eframe::App for DesktopApp {
                 });
 
             self.show_allocation_dialog = dialog_open;
-        }
-
-        if self.show_add_allocation_record_dialog {
-            let mut dialog_open = self.show_add_allocation_record_dialog;
-            let mut should_close_after_show = false;
-
-            egui::Window::new("Add Allocation Record")
-                .collapsible(false)
-                .resizable(true)
-                .open(&mut dialog_open)
-                .show(&ctx, |ui| {
-                    ui.label("Date:");
-                    ui.add(DatePickerButton::new(&mut self.allocation_record_date));
-
-                    ui.add_space(12.0);
-                    ui.label("Positions:");
-
-                    egui::ScrollArea::vertical()
-                        .max_height(260.0)
-                        .show(ui, |ui| {
-                            for asset in &mut self.allocation_record_assets {
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        egui::TextEdit::singleline(&mut asset.amount_input)
-                                            .desired_width(80.0),
-                                    );
-                                    ui.label(&asset.label);
-                                });
-                            }
-                        });
-
-                    ui.add_space(12.0);
-
-                    ui.horizontal(|ui| {
-                        if ui.button("OK").clicked() {
-                            let mut positions = Vec::new();
-                            let mut validation_error = None;
-
-                            for asset in &self.allocation_record_assets {
-                                let trimmed = asset.amount_input.trim();
-
-                                if trimmed.is_empty() {
-                                    continue;
-                                }
-
-                                let amount = match trimmed.parse::<i64>() {
-                                    Ok(value) => value,
-                                    Err(_) => {
-                                        validation_error = Some(format!(
-                                            "Invalid amount for asset '{}'",
-                                            asset.label
-                                        ));
-                                        break;
-                                    }
-                                };
-
-                                if amount <= 0 {
-                                    validation_error = Some(format!(
-                                        "Amount must be greater than 0 for asset '{}'",
-                                        asset.label
-                                    ));
-                                    break;
-                                }
-
-                                positions.push(AllocationPosition {
-                                    asset_id: asset.id,
-                                    amount,
-                                });
-                            }
-
-                            if let Some(message) = validation_error {
-                                self.status_message = Some(message);
-                            } else {
-                                match self.asset_service.add_allocation_record(
-                                    self.allocation_record_date,
-                                    positions,
-                                ) {
-                                    Ok(()) => {
-                                        self.status_message =
-                                            Some("Allocation record was saved.".into());
-                                        self.reset_add_allocation_record_dialog();
-                                        should_close_after_show = true;
-                                    }
-                                    Err(err) => {
-                                        self.status_message = Some(err.to_string());
-                                    }
-                                }
-                            }
-                        }
-
-                        if ui.button("Cancel").clicked() {
-                            self.reset_add_allocation_record_dialog();
-                            should_close_after_show = true;
-                        }
-                    });
-                });
-
-            self.show_add_allocation_record_dialog = dialog_open && !should_close_after_show;
         }
     }
 }
