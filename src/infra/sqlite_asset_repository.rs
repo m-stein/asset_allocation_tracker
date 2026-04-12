@@ -9,7 +9,7 @@ use crate::domain::asset_reference::AssetReference;
 use crate::domain::category::Category;
 use crate::domain::category_value::CategoryValue;
 use crate::domain::named_distribution::NamedDistribution;
-use crate::domain::reference_type::ReferenceType;
+use crate::domain::asset_reference_type::AssetReferenceType;
 
 pub struct SqliteAssetRepository {
     connection: Connection,
@@ -405,19 +405,19 @@ impl AssetRepository for SqliteAssetRepository {
     }
 }
 
-fn reference_type_to_str(rt: ReferenceType) -> &'static str {
+fn reference_type_to_str(rt: AssetReferenceType) -> &'static str {
     match rt {
-        ReferenceType::Iban => "IBAN",
-        ReferenceType::Isin => "ISIN",
-        ReferenceType::Ticker => "TICKER",
+        AssetReferenceType::Iban => "IBAN",
+        AssetReferenceType::Isin => "ISIN",
+        AssetReferenceType::Ticker => "TICKER",
     }
 }
 
-fn str_to_reference_type(s: &str) -> Option<ReferenceType> {
+fn str_to_reference_type(s: &str) -> Option<AssetReferenceType> {
     match s {
-        "IBAN" => Some(ReferenceType::Iban),
-        "ISIN" => Some(ReferenceType::Isin),
-        "TICKER" => Some(ReferenceType::Ticker),
+        "IBAN" => Some(AssetReferenceType::Iban),
+        "ISIN" => Some(AssetReferenceType::Isin),
+        "TICKER" => Some(AssetReferenceType::Ticker),
         _ => None,
     }
 }

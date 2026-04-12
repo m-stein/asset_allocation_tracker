@@ -6,7 +6,7 @@ use crate::domain::asset_reference::AssetReference;
 use crate::domain::category::Category;
 use crate::domain::category_value::CategoryValue;
 use crate::domain::named_distribution::NamedDistribution;
-use crate::domain::reference_type::ReferenceType;
+use crate::domain::asset_reference_type::AssetReferenceType;
 use jiff::civil::Date;
 
 pub struct AssetService {
@@ -48,7 +48,7 @@ impl AssetService {
     pub fn add_asset(
         &mut self,
         name: String,
-        reference_type: ReferenceType,
+        reference_type: AssetReferenceType,
         reference_value: String,
         category_value_ids: &Vec<i64>,
     ) -> Result<(), AppError> {

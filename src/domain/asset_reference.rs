@@ -1,14 +1,14 @@
-use crate::domain::reference_type::ReferenceType;
+use crate::domain::asset_reference_type::AssetReferenceType;
 
 
 #[derive(Debug, Clone)]
 pub struct AssetReference {
-    pub reference_type: ReferenceType,
+    pub reference_type: AssetReferenceType,
     pub value: String,
 }
 
 impl AssetReference {
-    pub fn new(reference_type: ReferenceType, value: String) -> Result<Self, String> {
+    pub fn new(reference_type: AssetReferenceType, value: String) -> Result<Self, String> {
         let trimmed = value.trim();
 
         if trimmed.is_empty() {

@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReferenceType {
+pub enum AssetReferenceType {
     Iban,
     Isin,
     Ticker,

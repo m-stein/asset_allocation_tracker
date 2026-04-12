@@ -9,7 +9,7 @@ use crate::app::asset_service::AssetService;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::category::Category;
 use crate::domain::named_distribution::NamedDistribution;
-use crate::domain::reference_type::ReferenceType;
+use crate::domain::asset_reference_type::AssetReferenceType;
 use crate::ui::desktop_app::pie_chart::draw_pie_chart;
 
 pub struct PositionItem {
@@ -36,7 +36,7 @@ pub struct DesktopApp {
 
     asset_name_input: String,
     reference_value_input: String,
-    selected_reference_type: ReferenceType,
+    selected_reference_type: AssetReferenceType,
 
     show_add_allocation_record_dialog: bool,
     allocation_record_date: Date,
@@ -73,7 +73,7 @@ impl DesktopApp {
             asset_service,
             asset_name_input: String::new(),
             reference_value_input: String::new(),
-            selected_reference_type: ReferenceType::Isin,
+            selected_reference_type: AssetReferenceType::Isin,
 
             show_add_allocation_record_dialog: false,
             allocation_record_date: Zoned::now().date(),
@@ -156,7 +156,7 @@ impl DesktopApp {
     fn reset_add_asset_page(&mut self) {
         self.asset_name_input.clear();
         self.reference_value_input.clear();
-        self.selected_reference_type = ReferenceType::Isin;
+        self.selected_reference_type = AssetReferenceType::Isin;
     }
     
     fn reset_add_category_dialog(&mut self) {
@@ -192,11 +192,11 @@ impl DesktopApp {
         }
     }
 
-    fn reference_type_label(reference_type: ReferenceType) -> &'static str {
+    fn reference_type_label(reference_type: AssetReferenceType) -> &'static str {
         match reference_type {
-            ReferenceType::Iban => "IBAN",
-            ReferenceType::Isin => "ISIN",
-            ReferenceType::Ticker => "Ticker",
+            AssetReferenceType::Iban => "IBAN",
+            AssetReferenceType::Isin => "ISIN",
+            AssetReferenceType::Ticker => "Ticker",
         }
     }
 
@@ -307,18 +307,18 @@ impl DesktopApp {
             .show_ui(ui, |ui| {
                 ui.selectable_value(
                     &mut self.selected_reference_type,
-                    ReferenceType::Iban,
-                    Self::reference_type_label(ReferenceType::Iban),
+                    AssetReferenceType::Iban,
+                    Self::reference_type_label(AssetReferenceType::Iban),
                 );
                 ui.selectable_value(
                     &mut self.selected_reference_type,
-                    ReferenceType::Isin,
-                    Self::reference_type_label(ReferenceType::Isin),
+                    AssetReferenceType::Isin,
+                    Self::reference_type_label(AssetReferenceType::Isin),
                 );
                 ui.selectable_value(
                     &mut self.selected_reference_type,
-                    ReferenceType::Ticker,
-                    Self::reference_type_label(ReferenceType::Ticker),
+                    AssetReferenceType::Ticker,
+                    Self::reference_type_label(AssetReferenceType::Ticker),
                 );
             });
         ui.add_space(8.0);
