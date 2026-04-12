@@ -29,6 +29,7 @@ enum Page {
     AllocationDiagram,
     AddAsset,
     AddCategory,
+    AddCategoryValue,
 }
 
 pub struct DesktopApp {
@@ -48,7 +49,6 @@ pub struct DesktopApp {
 
     category_name_input: String,
 
-    show_add_category_value_dialog: bool,
     category_value_name_input: String,
     selected_category_id_for_value: Option<i64>,
     asset_categories: Vec<CategoryItem>,
@@ -85,7 +85,6 @@ impl DesktopApp {
 
             category_name_input: String::new(),
 
-            show_add_category_value_dialog: false,
             category_value_name_input: String::new(),
             selected_category_id_for_value: None,
             asset_categories: Vec::new(),
@@ -146,7 +145,7 @@ impl DesktopApp {
         }
     }
 
-    fn reset_add_category_value_dialog(&mut self) {
+    fn reset_add_category_value_page(&mut self) {
         self.category_value_name_input.clear();
         self.selected_category_id_for_value = self.asset_categories
             .first()
@@ -159,7 +158,7 @@ impl DesktopApp {
         self.selected_reference_type = AssetReferenceType::Isin;
     }
     
-    fn reset_add_category_dialog(&mut self) {
+    fn reset_add_category_page(&mut self) {
         self.category_name_input.clear();
     }
 
@@ -257,10 +256,56 @@ impl DesktopApp {
     }
 
     fn init_add_category_page(&mut self) {
-        self.reset_add_category_dialog();
+        self.reset_add_category_page();
+        self.status_message = None;
+    }
+
+    fn init_add_category_value_page(&mut self) {
+        self.reload_asset_categories();
+        self.reset_add_category_value_page();
         self.status_message = None;
     }
     
+    fn show_add_category_value_page(&mut self, ui: &mut egui::Ui) {
+        ui.label("Category:");
+        egui::ComboBox::from_id_salt("asset_category_value_category")
+            .selected_text(self.selected_category_name_for_value())
+            .show_ui(ui, |ui| {
+                for category in &self.asset_categories {
+                    ui.selectable_value(
+                        &mut self.selected_category_id_for_value,
+                        Some(category.id),
+                        &category.name,
+                    );
+                }
+            });
+        ui.add_space(8.0);
+        ui.label("Name:");
+        ui.text_edit_singleline(&mut self.category_value_name_input);
+        ui.add_space(12.0);
+        if ui.button("Save").clicked() {
+            let Some(category_id) = self.selected_category_id_for_value else {
+                self.status_message = Some("Please select a category.".into());
+                return;
+            };
+            match self.asset_service.add_asset_category_value(
+                category_id,
+                self.category_value_name_input.clone(),
+            ) {
+                Ok(()) => {
+                    self.status_message = Some(format!(
+                        "Category value '{}' was saved.",
+                        self.category_value_name_input.trim()
+                    ));
+                    self.reset_add_category_value_page();
+                }
+                Err(err) => {
+                    self.status_message = Some(err.to_string());
+                }
+            }
+        }
+    }
+
     fn show_add_category_page(&mut self, ui: &mut egui::Ui) {
         ui.label(egui::RichText::new("Add Category").heading().size(Self::H2_SIZE));
         ui.add_space(12.0);
@@ -297,7 +342,7 @@ impl DesktopApp {
         ui.label(egui::RichText::new("Add Asset").heading().size(Self::H2_SIZE));
         ui.add_space(12.0);
 
-        ui.label("Asset name:");
+        ui.label("Name:");
         ui.text_edit_singleline(&mut self.asset_name_input);
         ui.add_space(8.0);
 
@@ -326,6 +371,7 @@ impl DesktopApp {
         ui.label("Reference value:");
         ui.text_edit_singleline(&mut self.reference_value_input);
         ui.add_space(12.0);
+        ui.label("Category Values:");
         egui::ScrollArea::vertical()
             .max_height(260.0)
             .show(ui, |ui| {
@@ -422,13 +468,7 @@ impl eframe::App for DesktopApp {
                 self.show_page_button(ui, Page::AllocationDiagram, "Allocation Diagram", Self::init_alocation_diagram_page);
                 self.show_page_button(ui, Page::AddAsset, "Add Asset", Self::init_add_asset_page);
                 self.show_page_button(ui, Page::AddCategory, "Add Category", Self::init_add_category_page);
-
-                if ui.button("Add Asset Category Value").clicked() {
-                    self.reload_asset_categories();
-                    self.reset_add_category_value_dialog();
-                    self.status_message = None;
-                    self.show_add_category_value_dialog = true;
-                }
+                self.show_page_button(ui, Page::AddCategoryValue, "Add Category Value", Self::init_add_category_value_page);
 
                 if ui.button("Add Allocation Record").clicked() {
                     self.reload_asset_list_for_allocation_record();
@@ -458,6 +498,7 @@ impl eframe::App for DesktopApp {
                 Page::AddAsset => self.show_add_asset_page(ui),
                 Page::AllocationDiagram => self.show_alocation_diagram_page(ui),
                 Page::AddCategory => self.show_add_category_page(ui),
+                Page::AddCategoryValue => self.show_add_category_value_page(ui),
             }
             ui.add_space(12.0);
             ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
@@ -466,71 +507,6 @@ impl eframe::App for DesktopApp {
                 ui.label(message);
             }
         });
-
-        if self.show_add_category_value_dialog {
-            let mut dialog_open = self.show_add_category_value_dialog;
-            let mut should_close_after_show = false;
-
-            egui::Window::new("Add Asset Category Value")
-                .collapsible(false)
-                .resizable(false)
-                .open(&mut dialog_open)
-                .show(&ctx, |ui| {
-                    ui.label("Category:");
-
-                    egui::ComboBox::from_id_salt("asset_category_value_category")
-                        .selected_text(self.selected_category_name_for_value())
-                        .show_ui(ui, |ui| {
-                            for category in &self.asset_categories {
-                                ui.selectable_value(
-                                    &mut self.selected_category_id_for_value,
-                                    Some(category.id),
-                                    &category.name,
-                                );
-                            }
-                        });
-
-                    ui.add_space(8.0);
-
-                    ui.label("Value name:");
-                    ui.text_edit_singleline(&mut self.category_value_name_input);
-
-                    ui.add_space(12.0);
-
-                    ui.horizontal(|ui| {
-                        if ui.button("OK").clicked() {
-                            let Some(category_id) = self.selected_category_id_for_value else {
-                                self.status_message = Some("Please select a category.".into());
-                                return;
-                            };
-
-                            match self.asset_service.add_asset_category_value(
-                                category_id,
-                                self.category_value_name_input.clone(),
-                            ) {
-                                Ok(()) => {
-                                    self.status_message = Some(format!(
-                                        "Category value '{}' was saved.",
-                                        self.category_value_name_input.trim()
-                                    ));
-                                    self.reset_add_category_value_dialog();
-                                    should_close_after_show = true;
-                                }
-                                Err(err) => {
-                                    self.status_message = Some(err.to_string());
-                                }
-                            }
-                        }
-
-                        if ui.button("Cancel").clicked() {
-                            self.reset_add_category_value_dialog();
-                            should_close_after_show = true;
-                        }
-                    });
-                });
-
-            self.show_add_category_value_dialog = dialog_open && !should_close_after_show;
-        }
 
         if self.show_allocation_dialog {
             let mut dialog_open = self.show_allocation_dialog;
