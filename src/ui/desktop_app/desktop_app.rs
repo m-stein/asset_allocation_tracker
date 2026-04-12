@@ -28,6 +28,7 @@ pub struct CategoryItem {
 enum Page {
     AllocationDiagram,
     AddAsset,
+    AddCategory,
 }
 
 pub struct DesktopApp {
@@ -46,7 +47,6 @@ pub struct DesktopApp {
     asset_name_by_id: HashMap<i64, String>,
 
     category_name_input: String,
-    show_add_category_dialog: bool,
 
     show_add_category_value_dialog: bool,
     category_value_name_input: String,
@@ -84,7 +84,6 @@ impl DesktopApp {
             asset_name_by_id: HashMap::new(),
 
             category_name_input: String::new(),
-            show_add_category_dialog: false,
 
             show_add_category_value_dialog: false,
             category_value_name_input: String::new(),
@@ -257,6 +256,34 @@ impl DesktopApp {
         }
     }
 
+    fn init_add_category_page(&mut self) {
+        self.reset_add_category_dialog();
+        self.status_message = None;
+    }
+    
+    fn show_add_category_page(&mut self, ui: &mut egui::Ui) {
+        ui.label(egui::RichText::new("Add Category").heading().size(Self::H2_SIZE));
+        ui.add_space(12.0);
+        ui.label("Name:");
+        ui.text_edit_singleline(&mut self.category_name_input);
+        ui.add_space(12.0);
+        if ui.button("Save").clicked() {
+            match self.asset_service.add_category(
+                self.category_name_input.clone(),
+            ) {
+                Ok(()) => {
+                    self.status_message = Some(format!(
+                        "Category '{}' was saved.", self.category_name_input.trim()
+                    ));
+                    self.page = Self::MAIN_PAGE;
+                }
+                Err(err) => {
+                    self.status_message = Some(err.to_string());
+                }
+            }
+        }
+    }
+
     fn init_add_asset_page(&mut self) {
 
         self.reset_add_asset_page();
@@ -299,7 +326,6 @@ impl DesktopApp {
         ui.label("Reference value:");
         ui.text_edit_singleline(&mut self.reference_value_input);
         ui.add_space(12.0);
-
         egui::ScrollArea::vertical()
             .max_height(260.0)
             .show(ui, |ui| {
@@ -345,47 +371,42 @@ impl DesktopApp {
                     });
                 }
             });
-
         ui.add_space(12.0);
+        if ui.button("Save").clicked() {
 
-        ui.horizontal(|ui| {
-            if ui.button("Save").clicked() {
-
-                let mut category_value_ids: Vec<i64> = Vec::new();
-                let mut category_value_not_set = false;
-                for (_, valid_opt) in self.category_id_to_selected_value_id.iter() {
-                    if let Some(valid) = valid_opt {
-                        category_value_ids.push(*valid)
-                    } else {
-                        category_value_not_set = true;
-                        break;
-                    };
-                }
-                if category_value_not_set {
-                    self.status_message = Some("All category values must be set".into());
+            let mut category_value_ids: Vec<i64> = Vec::new();
+            let mut category_value_not_set = false;
+            for (_, valid_opt) in self.category_id_to_selected_value_id.iter() {
+                if let Some(valid) = valid_opt {
+                    category_value_ids.push(*valid)
                 } else {
-                    match self.asset_service.add_asset(
-                        self.asset_name_input.clone(),
-                        self.selected_reference_type,
-                        self.reference_value_input.clone(),
-                        &category_value_ids
-                    ) {
-                        Ok(()) => {
-                            self.status_message = Some(format!(
-                                "Asset '{}' was saved.",
-                                self.asset_name_input.trim()
-                            ));
-                            self.reset_add_asset_page();
-                            self.page = Self::MAIN_PAGE;
-                        }
-                        Err(err) => {
-                            self.status_message = Some(err.to_string());
-                        }
+                    category_value_not_set = true;
+                    break;
+                };
+            }
+            if category_value_not_set {
+                self.status_message = Some("All category values must be set".into());
+            } else {
+                match self.asset_service.add_asset(
+                    self.asset_name_input.clone(),
+                    self.selected_reference_type,
+                    self.reference_value_input.clone(),
+                    &category_value_ids
+                ) {
+                    Ok(()) => {
+                        self.status_message = Some(format!(
+                            "Asset '{}' was saved.",
+                            self.asset_name_input.trim()
+                        ));
+                        self.reset_add_asset_page();
+                        self.page = Self::MAIN_PAGE;
+                    }
+                    Err(err) => {
+                        self.status_message = Some(err.to_string());
                     }
                 }
             }
-        });
-        ui.add_space(12.0);
+        }
     }
 }
 
@@ -400,11 +421,7 @@ impl eframe::App for DesktopApp {
             ui.horizontal(|ui| {
                 self.show_page_button(ui, Page::AllocationDiagram, "Allocation Diagram", Self::init_alocation_diagram_page);
                 self.show_page_button(ui, Page::AddAsset, "Add Asset", Self::init_add_asset_page);
-                if ui.button("Add Asset Category").clicked() {
-                    self.reset_add_category_dialog();
-                    self.status_message = None;
-                    self.show_add_category_dialog = true;
-                }
+                self.show_page_button(ui, Page::AddCategory, "Add Category", Self::init_add_category_page);
 
                 if ui.button("Add Asset Category Value").clicked() {
                     self.reload_asset_categories();
@@ -440,7 +457,9 @@ impl eframe::App for DesktopApp {
             match self.page {
                 Page::AddAsset => self.show_add_asset_page(ui),
                 Page::AllocationDiagram => self.show_alocation_diagram_page(ui),
+                Page::AddCategory => self.show_add_category_page(ui),
             }
+            ui.add_space(12.0);
             ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
             ui.add_space(12.0);
             if let Some(message) = &self.status_message {
@@ -563,49 +582,6 @@ impl eframe::App for DesktopApp {
                 });
 
             self.show_allocation_dialog = dialog_open;
-        }
-
-        if self.show_add_category_dialog {
-            let mut dialog_open = self.show_add_category_dialog;
-            let mut should_close_after_show = false;
-
-            egui::Window::new("Add Asset Category")
-                .collapsible(false)
-                .resizable(false)
-                .open(&mut dialog_open)
-                .show(&ctx, |ui| {
-                    ui.label("Category name:");
-                    ui.text_edit_singleline(&mut self.category_name_input);
-
-                    ui.add_space(12.0);
-
-                    ui.horizontal(|ui| {
-                        if ui.button("OK").clicked() {
-                            match self.asset_service.add_category(
-                                self.category_name_input.clone(),
-                            ) {
-                                Ok(()) => {
-                                    self.status_message = Some(format!(
-                                        "Asset category '{}' was saved.",
-                                        self.category_name_input.trim()
-                                    ));
-                                    self.reset_add_category_dialog();
-                                    should_close_after_show = true;
-                                }
-                                Err(err) => {
-                                    self.status_message = Some(err.to_string());
-                                }
-                            }
-                        }
-
-                        if ui.button("Cancel").clicked() {
-                            self.reset_add_category_dialog();
-                            should_close_after_show = true;
-                        }
-                    });
-                });
-
-            self.show_add_category_dialog = dialog_open && !should_close_after_show;
         }
 
         if self.show_add_allocation_record_dialog {
