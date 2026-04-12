@@ -1,11 +1,11 @@
 #[derive(Debug, Clone)]
-pub struct AssetCategoryValue {
+pub struct CategoryValue {
     pub id: i64,
     pub asset_category_id: i64,
     pub name: String,
 }
 
-impl AssetCategoryValue {
+impl CategoryValue {
     pub fn new(asset_category_id: i64, name: String) -> Result<Self, String> {
         let trimmed = name.trim();
 

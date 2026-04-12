@@ -3,7 +3,7 @@ use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
 use crate::domain::category::Category;
-use crate::domain::category_value::AssetCategoryValue;
+use crate::domain::category_value::CategoryValue;
 use crate::domain::named_distribution::NamedDistribution;
 use jiff::civil::Date;
 
@@ -95,7 +95,7 @@ impl AssetService {
         self.repository.list_asset_categories()
     }
     
-    pub fn list_asset_category_values(&self, category: &Category) -> Result<Vec<AssetCategoryValue>, AppError> {
+    pub fn list_asset_category_values(&self, category: &Category) -> Result<Vec<CategoryValue>, AppError> {
         self.repository.list_asset_category_values(category)
     }
 
@@ -104,7 +104,7 @@ impl AssetService {
         asset_category_id: i64,
         name: String,
     ) -> Result<(), AppError> {
-        let value = AssetCategoryValue::new(asset_category_id, name)
+        let value = CategoryValue::new(asset_category_id, name)
             .map_err(AppError::Validation)?;
 
         self.repository.add_asset_category_value(&value)

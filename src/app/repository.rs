@@ -2,7 +2,7 @@ use crate::app::error::AppError;
 use crate::domain::allocation_record::AllocationRecord;
 use crate::domain::asset::Asset;
 use crate::domain::category::Category;
-use crate::domain::category_value::AssetCategoryValue;
+use crate::domain::category_value::CategoryValue;
 use crate::domain::named_distribution::NamedDistribution;
 
 pub trait AssetRepository {
@@ -15,10 +15,10 @@ pub trait AssetRepository {
     ) -> Result<(), AppError>;
     fn get_latest_allocation_record(&self) -> Result<Option<AllocationRecord>, AppError>;
     fn list_asset_categories(&self) -> Result<Vec<Category>, AppError>;
-    fn list_asset_category_values(&self, category: &Category) -> Result<Vec<AssetCategoryValue>, AppError>;
+    fn list_asset_category_values(&self, category: &Category) -> Result<Vec<CategoryValue>, AppError>;
     fn add_asset_category_value(
         &mut self,
-        value: &AssetCategoryValue,
+        value: &CategoryValue,
     ) -> Result<(), AppError>;
     fn get_distribution_for_category(
         &self,

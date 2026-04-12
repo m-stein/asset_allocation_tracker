@@ -6,7 +6,7 @@ use crate::app::repository::AssetRepository;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::{Asset, AssetReference, ReferenceType};
 use crate::domain::category::Category;
-use crate::domain::category_value::AssetCategoryValue;
+use crate::domain::category_value::CategoryValue;
 use crate::domain::named_distribution::NamedDistribution;
 
 pub struct SqliteAssetRepository {
@@ -168,7 +168,7 @@ impl AssetRepository for SqliteAssetRepository {
     fn list_asset_category_values(
         &self,
         category: &Category,
-    ) -> Result<Vec<AssetCategoryValue>, AppError> {
+    ) -> Result<Vec<CategoryValue>, AppError> {
         let mut stmt = self.connection
             .prepare(
                 "
@@ -182,7 +182,7 @@ impl AssetRepository for SqliteAssetRepository {
 
         let values_iter = stmt
             .query_map(params![category.id], |row| {
-                Ok(AssetCategoryValue {
+                Ok(CategoryValue {
                     id: row.get(0)?,
                     asset_category_id: row.get(1)?,
                     name: row.get(2)?,
@@ -228,7 +228,7 @@ impl AssetRepository for SqliteAssetRepository {
 
     fn add_asset_category_value(
         &mut self,
-        value: &AssetCategoryValue,
+        value: &CategoryValue,
     ) -> Result<(), AppError> {
         self.connection.execute(
             "INSERT INTO asset_category_values (asset_category_id, name)
