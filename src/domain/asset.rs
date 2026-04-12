@@ -1,3 +1,5 @@
+use crate::domain::reference_type::ReferenceType;
+
 #[derive(Debug, Clone)]
 pub struct Asset {
     pub id: i64,
@@ -9,13 +11,6 @@ pub struct Asset {
 pub struct AssetReference {
     pub reference_type: ReferenceType,
     pub value: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReferenceType {
-    Iban,
-    Isin,
-    Ticker,
 }
 
 impl AssetReference {

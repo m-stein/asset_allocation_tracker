@@ -7,9 +7,9 @@ use jiff::Zoned;
 
 use crate::app::asset_service::AssetService;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
-use crate::domain::asset::ReferenceType;
 use crate::domain::category::Category;
 use crate::domain::named_distribution::NamedDistribution;
+use crate::domain::reference_type::ReferenceType;
 use crate::ui::desktop_app::pie_chart::draw_pie_chart;
 
 pub struct PositionItem {
