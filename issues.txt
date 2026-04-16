@@ -1,0 +1,13 @@
+Pending:
+
+I1: Successful save in any page navigates one back to page "Allocation Diagram"
+
+I2: When navigating to "Allocation Diagram" the diagram is not updated
+
+I3: Support for having multiple differently weighted values for one category at an asset
+
+I4: Let allocation diagram show the development over multiple consecutive records
+
+I5: Allow for configuring one target allocation per category
+
+I6: Allow for adding assets that lack category values and show them as "Unknown" in diagrams
