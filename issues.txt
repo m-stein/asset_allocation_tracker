@@ -1,6 +1,5 @@
-Pending:
-
-I1: Successful save in any page navigates one back to page "Allocation Diagram"
+Open
+####
 
 I2: When navigating to "Allocation Diagram" the diagram is not updated
 
@@ -11,3 +10,11 @@ I4: Let allocation diagram show the development over multiple consecutive record
 I5: Allow for configuring one target allocation per category
 
 I6: Allow for adding assets that lack category values and show them as "Unknown" in diagrams
+
+I7: The user input on each page should be reset on successful save only but not when leaving the page
+
+
+Closed
+######
+
+I1: Successful save in any page navigates one back to page "Allocation Diagram"

@@ -63,12 +63,11 @@ pub struct DesktopApp {
 }
 
 impl DesktopApp {
-    const MAIN_PAGE: Page = Page::AllocationDiagram;
     const H1_SIZE: f32 = 32.0;
     const H2_SIZE: f32 = 24.0;
 
     pub fn new(asset_service: AssetService) -> Self {
-        let mut s = Self {
+        let mut app = Self {
             asset_service,
             asset_name_input: String::new(),
             reference_value_input: String::new(),
@@ -95,10 +94,10 @@ impl DesktopApp {
 
             page: Page::AllocationDiagram,
         };
-        s.init_alocation_diagram_page();
-        s.reload_latest_allocation_record();
-        s.reload_asset_list_for_allocation_record();
-        s
+        app.init_alocation_diagram_page();
+        app.reload_latest_allocation_record();
+        app.reload_asset_list_for_allocation_record();
+        app
     }
 
     fn reload_latest_allocation_record(&mut self) {
@@ -477,7 +476,6 @@ impl DesktopApp {
                     self.status_message = Some(format!(
                         "Category '{}' was saved.", self.category_name_input.trim()
                     ));
-                    self.page = Self::MAIN_PAGE;
                 }
                 Err(err) => {
                     self.status_message = Some(err.to_string());
@@ -602,7 +600,6 @@ impl DesktopApp {
                             self.asset_name_input.trim()
                         ));
                         self.reset_add_asset_page();
-                        self.page = Self::MAIN_PAGE;
                     }
                     Err(err) => {
                         self.status_message = Some(err.to_string());
