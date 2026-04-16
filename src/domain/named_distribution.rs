@@ -1,4 +1,4 @@
 pub struct NamedDistribution {
     pub name: String,
-    pub percentage: f64,
+    pub amount: i64,
 }

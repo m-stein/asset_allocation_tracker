@@ -13,9 +13,13 @@ pub fn draw_pie_chart(ui: &mut egui::Ui, data: &[NamedDistribution]) {
     let radius = rect.width().min(rect.height()) / 2.0;
 
     let mut start_angle = 0.0;
-
-    for (i, entry) in data.iter().enumerate() {
-        let angle = entry.percentage as f32 * std::f32::consts::TAU;
+    let mut total_amount = 0;
+    for entry in data {
+        total_amount += entry.amount
+    }
+    for (idx, entry) in data.iter().enumerate() {
+        let percentage: f32 = entry.amount as f32 / total_amount as f32;
+        let angle = percentage as f32 * std::f32::consts::TAU;
 
         let segments = 32; // je höher, desto runder
         let mut points = vec![center];
@@ -28,9 +32,9 @@ pub fn draw_pie_chart(ui: &mut egui::Ui, data: &[NamedDistribution]) {
         }
 
         let color = egui::Color32::from_rgb(
-            (50 + i * 40 % 200) as u8,
-            (100 + i * 70 % 150) as u8,
-            (150 + i * 90 % 100) as u8,
+            (50 + idx * 40 % 200) as u8,
+            (100 + idx * 70 % 150) as u8,
+            (150 + idx * 90 % 100) as u8,
         );
 
         painter.add(Shape::convex_polygon(
@@ -47,7 +51,7 @@ pub fn draw_pie_chart(ui: &mut egui::Ui, data: &[NamedDistribution]) {
         painter.text(
             label_pos,
             egui::Align2::CENTER_CENTER,
-            format!("{}: {:.0}%", entry.name, entry.percentage * 100.0),
+            format!("{}: {:.0}%", entry.name, percentage * 100.0),
             egui::FontId::default(),
             Color32::BLACK,
         );

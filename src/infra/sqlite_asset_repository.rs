@@ -128,23 +128,16 @@ impl AssetRepository for SqliteAssetRepository {
                 FROM allocation_records
                 ORDER BY date DESC
                 LIMIT 1
-            ),
-            total AS (
-                SELECT SUM(arp.amount) AS total_amount
-                FROM allocation_record_positions arp
-                JOIN latest_record lr ON arp.allocation_record_id = lr.id
             )
             SELECT
                 acv.id,
                 acv.name,
-                SUM(arp.amount) AS value_amount,
-                SUM(arp.amount) * 1.0 / total.total_amount AS percentage
+                SUM(arp.amount) AS value_amount
             FROM allocation_record_positions arp
             JOIN latest_record lr ON arp.allocation_record_id = lr.id
             JOIN assets a ON a.id = arp.asset_id
             JOIN asset_category_value_assignments acva ON acva.asset_id = a.id
             JOIN asset_category_values acv ON acv.id = acva.asset_category_value_id
-            JOIN total
             WHERE acv.asset_category_id = ?1
             GROUP BY acv.id, acv.name
             ORDER BY value_amount DESC;
@@ -154,8 +147,7 @@ impl AssetRepository for SqliteAssetRepository {
         let rows = stmt.query_map(params![category_id], |row| {
             Ok(NamedDistribution {
                 name: row.get(1)?,
-                /* amount: row.get(2)?, */
-                percentage: row.get(3)?,
+                amount: row.get(2)?,
             })
         })?;
 
