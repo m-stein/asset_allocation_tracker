@@ -52,10 +52,12 @@ pub struct DesktopApp {
     selected_category_id_for_value: Option<i64>,
     asset_categories: Vec<CategoryItem>,
 
+    add_asset_category_to_value_input_cnt: HashMap<i64, i64>,
+
     alloc_diagram_category_id: Option<i64>,
     alloc_diagram_data: Option<Vec<NamedDistribution>>,
 
-    category_id_to_selected_value_id: HashMap<i64, Option<i64>>,
+    category_id_to_selected_value_ids: HashMap<i64, Vec<Option<i64>>>,
 
     status_message: Option<String>,
 
@@ -85,10 +87,12 @@ impl DesktopApp {
             selected_category_id_for_value: None,
             asset_categories: Vec::new(),
 
+            add_asset_category_to_value_input_cnt: HashMap::new(),
+
             alloc_diagram_category_id: None,
             alloc_diagram_data: None,
 
-            category_id_to_selected_value_id: HashMap::new(),
+            category_id_to_selected_value_ids: HashMap::new(),
 
             status_message: None,
 
@@ -166,6 +170,7 @@ impl DesktopApp {
     fn reset_add_asset_page(&mut self) {
         self.asset_name_input.clear();
         self.reference_value_input.clear();
+        self.add_asset_category_to_value_input_cnt.clear();
         self.selected_reference_type = AssetReferenceType::Isin;
     }
     
@@ -488,7 +493,7 @@ impl DesktopApp {
 
         self.reset_add_asset_page();
         self.reload_asset_categories();
-        self.category_id_to_selected_value_id.clear();
+        self.category_id_to_selected_value_ids.clear();
         self.status_message = None;
     }
 
@@ -541,31 +546,47 @@ impl DesktopApp {
                             .unwrap_or_default();
 
                         // get category value ID of selected item or None
-                        let selected_value_id = self
-                            .category_id_to_selected_value_id
+                        let selected_value_ids = self
+                            .category_id_to_selected_value_ids
                             .entry(category_item.id)
-                            .or_insert(None);
+                            .or_insert(Vec::new());
 
-                        // get text of selected item or "Select..."
-                        let selected_text = selected_value_id
-                            .and_then(|id| {
-                                selectable_values.iter().find(|v| v.id == id)
-                            })
-                            .map(|v| v.name.clone())
-                            .unwrap_or_else(|| "Select...".to_string());
+                        ui.horizontal(|ui| {
+                            let input_cnt =
+                                *self.add_asset_category_to_value_input_cnt
+                                    .entry(category_item.id)
+                                    .or_insert(1) as usize;
 
-                        // show drop-down for selecting a value for this category
-                        egui::ComboBox::from_id_salt(category_item.id)
-                            .selected_text(selected_text)
-                            .show_ui(ui, |ui| {
-                                for value in &selectable_values {
-                                    ui.selectable_value(
-                                        selected_value_id,
-                                        Some(value.id),
-                                        &value.name,
-                                    );
-                                }
-                            });
+                            selected_value_ids.resize(input_cnt, None);
+                            for input_idx in 0..input_cnt {
+                                
+                                let selected_value_id = &mut selected_value_ids[input_idx];
+                                // get text of selected item or "Select..."
+                                let selected_text = selected_value_id
+                                    .and_then(|id| selectable_values.iter().find(|v| v.id == id))
+                                    .map(|v| v.name.clone())
+                                    .unwrap_or_else(|| "Select...".to_string());
+
+                                // show drop-down for selecting a value for this category
+                                egui::ComboBox::from_id_salt(format!("{}:{}", category_item.id, input_idx))
+                                    .selected_text(selected_text)
+                                    .show_ui(ui, |ui| {
+                                        for value in &selectable_values {
+                                            ui.selectable_value(
+                                                selected_value_id,
+                                                Some(value.id),
+                                                &value.name,
+                                            );
+                                        }
+                                    });
+                            }
+                            if ui.button("+").clicked() {
+                                self.add_asset_category_to_value_input_cnt
+                                    .entry(category_item.id)
+                                    .and_modify(|input_cnt| *input_cnt += 1)
+                                    .or_insert(2);
+                            }
+                        });
                             
                         // show category name to the right of the drop-down
                         ui.label(&category_item.name);
@@ -577,13 +598,15 @@ impl DesktopApp {
 
             let mut category_value_ids: Vec<i64> = Vec::new();
             let mut category_value_not_set = false;
-            for (_, valid_opt) in self.category_id_to_selected_value_id.iter() {
-                if let Some(valid) = valid_opt {
-                    category_value_ids.push(*valid)
-                } else {
-                    category_value_not_set = true;
-                    break;
-                };
+            for (_, value_ids) in self.category_id_to_selected_value_ids.iter() {
+                for value_id in value_ids {
+                    if let Some(value_id) = value_id {
+                        category_value_ids.push(*value_id)
+                    } else {
+                        category_value_not_set = true;
+                        break;
+                    };
+                }
             }
             if category_value_not_set {
                 self.status_message = Some("All category values must be set".into());

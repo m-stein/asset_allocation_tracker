@@ -1,20 +1,20 @@
 Open
 ####
 
-I2: When navigating to "Allocation Diagram" the diagram is not updated
+I#2: When navigating to "Allocation Diagram" the diagram is not updated
 
-I3: Support for having multiple differently weighted values for one category at an asset
+I#3: Support for having multiple differently weighted values for one category at an asset
 
-I4: Let allocation diagram show the development over multiple consecutive records
+I#4: Let allocation diagram show the development over multiple consecutive records
 
-I5: Allow for configuring one target allocation per category
+I#5: Allow for configuring one target allocation per category
 
-I6: Allow for adding assets that lack category values and show them as "Unknown" in diagrams
+I#6: Allow for adding assets that lack category values and show them as "Unknown" in diagrams
 
-I7: The user input on each page should be reset on successful save only but not when leaving the page
+I#7: The user input on each page should be reset on successful save only but not when leaving the page
 
 
 Closed
 ######
 
-I1: Successful save in any page navigates one back to page "Allocation Diagram"
+I#1: Successful save in any page navigates one back to page "Allocation Diagram"
