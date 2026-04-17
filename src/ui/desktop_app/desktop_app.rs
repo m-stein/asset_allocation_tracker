@@ -67,6 +67,8 @@ pub struct DesktopApp {
 impl DesktopApp {
     const H1_SIZE: f32 = 32.0;
     const H2_SIZE: f32 = 24.0;
+    const SPACE_1: f32 = 8.0;
+    const SPACE_2: f32 = 12.0;
 
     pub fn new(asset_service: AssetService) -> Self {
         let mut app = Self {
@@ -224,12 +226,12 @@ impl DesktopApp {
     fn show_add_allocation_record_page(&mut self, ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Add Allocation Record").heading().size(Self::H2_SIZE));
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
 
         ui.label("Date:");
         ui.add(DatePickerButton::new(&mut self.allocation_record_date));
 
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
         ui.label("Positions:");
 
         egui::ScrollArea::vertical()
@@ -246,7 +248,7 @@ impl DesktopApp {
                 }
             });
 
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
             let mut positions = Vec::new();
             let mut validation_error = None;
@@ -312,7 +314,7 @@ impl DesktopApp {
     fn show_allocation_diagram_page(&mut self, ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Allocation Diagram").heading().size(Self::H2_SIZE));
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
 
         ui.label("Category:");
 
@@ -333,7 +335,7 @@ impl DesktopApp {
                     "Position",
                 );
             });
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
 
         if prev_category_id != self.alloc_diagram_category_id {
             if let Some(category_id) = self.alloc_diagram_category_id {
@@ -350,7 +352,7 @@ impl DesktopApp {
                 self.alloc_diagram_data = None;
                 self.reload_latest_allocation_record();
             }
-            ui.add_space(12.0);
+            ui.add_space(Self::SPACE_2);
         }
         if let Some(data) = self.alloc_diagram_data.as_ref() {
             draw_pie_chart(ui, &data);
@@ -424,7 +426,7 @@ impl DesktopApp {
     fn show_add_category_value_page(&mut self, ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Add Category Value").heading().size(Self::H2_SIZE));
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
 
         ui.label("Category:");
         egui::ComboBox::from_id_salt("asset_category_value_category")
@@ -441,7 +443,7 @@ impl DesktopApp {
         ui.add_space(8.0);
         ui.label("Name:");
         ui.text_edit_singleline(&mut self.category_value_name_input);
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
             let Some(category_id) = self.selected_category_id_for_value else {
                 self.status_message = Some("Please select a category.".into());
@@ -468,11 +470,11 @@ impl DesktopApp {
     fn show_add_category_page(&mut self, ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Add Category").heading().size(Self::H2_SIZE));
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
 
         ui.label("Name:");
         ui.text_edit_singleline(&mut self.category_name_input);
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
             match self.asset_service.add_category(
                 self.category_name_input.clone(),
@@ -500,11 +502,11 @@ impl DesktopApp {
     fn show_add_asset_page(&mut self, ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Add Asset").heading().size(Self::H2_SIZE));
-        ui.add_space(12.0);
+        ui.add_space(Self::SPACE_2);
 
         ui.label("Name:");
         ui.text_edit_singleline(&mut self.asset_name_input);
-        ui.add_space(8.0);
+        ui.add_space(Self::SPACE_2);
 
         ui.label("Reference type:");
         egui::ComboBox::from_id_salt("reference_type")
@@ -526,74 +528,89 @@ impl DesktopApp {
                     Self::reference_type_label(AssetReferenceType::Ticker),
                 );
             });
-        ui.add_space(8.0);
+        ui.add_space(Self::SPACE_2);
 
         ui.label("Reference value:");
         ui.text_edit_singleline(&mut self.reference_value_input);
-        ui.add_space(12.0);
-        ui.label("Category Values:");
-        egui::ScrollArea::vertical()
-            .max_height(260.0)
-            .show(ui, |ui| {
-                for category_item in &mut self.asset_categories {
+        ui.vertical(|ui| {
+            for category_item in &mut self.asset_categories {
+
+                ui.add_space(Self::SPACE_2);
+                ui.label(format!("Category '{}':", &category_item.name));
+                ui.add_space(Self::SPACE_1);
+
+                // get possible values for this category
+                let category = Category { id: category_item.id, name: category_item.name.clone() };
+                let selectable_values = self
+                    .asset_service
+                    .list_asset_category_values(&category)
+                    .unwrap_or_default();
+
+                // get category value ID of selected item or None
+                let selected_value_ids = self
+                    .category_id_to_selected_value_ids
+                    .entry(category_item.id)
+                    .or_insert(Vec::new());
+
+                let input_cnt =
+                    *self.add_asset_category_to_value_input_cnt
+                        .entry(category_item.id)
+                        .or_insert(1) as usize;
+
+                selected_value_ids.resize(input_cnt, None);
+                for input_idx in 0..input_cnt {
+                    
+                    let selected_value_id = &mut selected_value_ids[input_idx];
+                    // get text of selected item or "Select..."
+                    let selected_text = selected_value_id
+                        .and_then(|id| selectable_values.iter().find(|v| v.id == id))
+                        .map(|v| v.name.clone())
+                        .unwrap_or_else(|| "Select...".to_string());
+
                     ui.horizontal(|ui| {
-
-                        // get possible values for this category
-                        let category = Category { id: category_item.id, name: category_item.name.clone() };
-                        let selectable_values = self
-                            .asset_service
-                            .list_asset_category_values(&category)
-                            .unwrap_or_default();
-
-                        // get category value ID of selected item or None
-                        let selected_value_ids = self
-                            .category_id_to_selected_value_ids
-                            .entry(category_item.id)
-                            .or_insert(Vec::new());
-
-                        ui.horizontal(|ui| {
-                            let input_cnt =
-                                *self.add_asset_category_to_value_input_cnt
-                                    .entry(category_item.id)
-                                    .or_insert(1) as usize;
-
-                            selected_value_ids.resize(input_cnt, None);
-                            for input_idx in 0..input_cnt {
-                                
-                                let selected_value_id = &mut selected_value_ids[input_idx];
-                                // get text of selected item or "Select..."
-                                let selected_text = selected_value_id
-                                    .and_then(|id| selectable_values.iter().find(|v| v.id == id))
-                                    .map(|v| v.name.clone())
-                                    .unwrap_or_else(|| "Select...".to_string());
-
-                                // show drop-down for selecting a value for this category
-                                egui::ComboBox::from_id_salt(format!("{}:{}", category_item.id, input_idx))
-                                    .selected_text(selected_text)
-                                    .show_ui(ui, |ui| {
-                                        for value in &selectable_values {
-                                            ui.selectable_value(
-                                                selected_value_id,
-                                                Some(value.id),
-                                                &value.name,
-                                            );
-                                        }
-                                    });
+                        // show drop-down for selecting a value for this category
+                        egui::ComboBox::from_id_salt(format!("{}:{}", category_item.id, input_idx))
+                            .selected_text(selected_text)
+                            .show_ui(ui, |ui| {
+                                for value in &selectable_values {
+                                    ui.selectable_value(
+                                        selected_value_id,
+                                        Some(value.id),
+                                        &value.name,
+                                    );
+                                }
+                            });
+                        if input_idx == input_cnt - 1 {
+                            if input_cnt > 1 {
+                                if ui
+                                    .add_sized([19., 19.], egui::Button::new("-"))
+                                    .clicked()
+                                {
+                                    let new_cnt = input_cnt - 1;
+                                    self.add_asset_category_to_value_input_cnt
+                                        .entry(category_item.id)
+                                        .and_modify(|cnt| *cnt = new_cnt as i64)
+                                        .or_insert(2);
+                                }
                             }
-                            if ui.button("+").clicked() {
-                                self.add_asset_category_to_value_input_cnt
-                                    .entry(category_item.id)
-                                    .and_modify(|input_cnt| *input_cnt += 1)
-                                    .or_insert(2);
+                            if input_cnt < selectable_values.len() {
+                                if ui
+                                    .add_sized([19., 19.], egui::Button::new("+"))
+                                    .clicked()
+                                {
+                                    let new_cnt = input_cnt + 1;
+                                    self.add_asset_category_to_value_input_cnt
+                                        .entry(category_item.id)
+                                        .and_modify(|cnt| *cnt = new_cnt as i64)
+                                        .or_insert(2);
+                                }
                             }
-                        });
-                            
-                        // show category name to the right of the drop-down
-                        ui.label(&category_item.name);
+                        }
                     });
                 }
-            });
-        ui.add_space(12.0);
+            }
+        });
+        ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
 
             let mut category_value_ids: Vec<i64> = Vec::new();
@@ -658,7 +675,7 @@ impl eframe::App for DesktopApp {
                     ui.add_space(20.0);
 
                     ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
-                    ui.add_space(12.0);
+                    ui.add_space(Self::SPACE_2);
                     if let Some(message) = &self.status_message {
                         ui.label(message);
                     }
