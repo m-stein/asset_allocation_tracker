@@ -69,6 +69,7 @@ impl DesktopApp {
     const H2_SIZE: f32 = 24.0;
     const SPACE_1: f32 = 8.0;
     const SPACE_2: f32 = 12.0;
+    const SYM_BTN_SIZE: f32 = 19.0;
 
     pub fn new(asset_service: AssetService) -> Self {
         let mut app = Self {
@@ -535,10 +536,6 @@ impl DesktopApp {
         ui.vertical(|ui| {
             for category_item in &mut self.asset_categories {
 
-                ui.add_space(Self::SPACE_2);
-                ui.label(format!("Category '{}':", &category_item.name));
-                ui.add_space(Self::SPACE_1);
-
                 // get possible values for this category
                 let category = Category { id: category_item.id, name: category_item.name.clone() };
                 let selectable_values = self
@@ -557,8 +554,26 @@ impl DesktopApp {
                         .entry(category_item.id)
                         .or_insert(1) as usize;
 
+                ui.add_space(Self::SPACE_2);
+                ui.horizontal(|ui| {
+                    if input_cnt < selectable_values.len() {
+                        if ui
+                            .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("+"))
+                            .clicked()
+                        {
+                            self.add_asset_category_to_value_input_cnt
+                                .entry(category_item.id)
+                                .and_modify(|cnt| *cnt = input_cnt as i64 + 1)
+                                .or_insert(2);
+                        }
+                    }
+                    ui.label(format!(" {}:", &category_item.name));
+                });
+                ui.add_space(Self::SPACE_1);
+
+
                 selected_value_ids.resize(input_cnt, None);
-                for input_idx in 0..input_cnt {
+                for input_idx in (0..input_cnt).rev() {
                     
                     let selected_value_id = &mut selected_value_ids[input_idx];
                     // get text of selected item or "Select..."
@@ -583,25 +598,12 @@ impl DesktopApp {
                         if input_idx == input_cnt - 1 {
                             if input_cnt > 1 {
                                 if ui
-                                    .add_sized([19., 19.], egui::Button::new("-"))
+                                    .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("-"))
                                     .clicked()
                                 {
-                                    let new_cnt = input_cnt - 1;
                                     self.add_asset_category_to_value_input_cnt
                                         .entry(category_item.id)
-                                        .and_modify(|cnt| *cnt = new_cnt as i64)
-                                        .or_insert(2);
-                                }
-                            }
-                            if input_cnt < selectable_values.len() {
-                                if ui
-                                    .add_sized([19., 19.], egui::Button::new("+"))
-                                    .clicked()
-                                {
-                                    let new_cnt = input_cnt + 1;
-                                    self.add_asset_category_to_value_input_cnt
-                                        .entry(category_item.id)
-                                        .and_modify(|cnt| *cnt = new_cnt as i64)
+                                        .and_modify(|cnt| *cnt = input_cnt as i64 - 1)
                                         .or_insert(2);
                                 }
                             }
