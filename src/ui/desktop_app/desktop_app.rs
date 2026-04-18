@@ -33,6 +33,11 @@ enum Page {
     AddAllocationRecord,
 }
 
+struct CategoryValueInput {
+    pub percentage: f32,
+    pub id: Option<i64>,
+}
+
 pub struct DesktopApp {
     asset_service: AssetService,
 
@@ -52,12 +57,12 @@ pub struct DesktopApp {
     selected_category_id_for_value: Option<i64>,
     asset_categories: Vec<CategoryItem>,
 
-    add_asset_category_to_value_input_cnt: HashMap<i64, i64>,
+    add_asset_catgy_to_val_input_cnt: HashMap<i64, i64>,
 
     alloc_diagram_category_id: Option<i64>,
     alloc_diagram_data: Option<Vec<NamedDistribution>>,
 
-    category_id_to_selected_value_ids: HashMap<i64, Vec<Option<i64>>>,
+    add_asset_catgy_id_to_val_inputs: HashMap<i64, Vec<CategoryValueInput>>,
 
     status_message: Option<String>,
 
@@ -69,7 +74,8 @@ impl DesktopApp {
     const H2_SIZE: f32 = 24.0;
     const SPACE_1: f32 = 8.0;
     const SPACE_2: f32 = 12.0;
-    const SYM_BTN_SIZE: f32 = 19.0;
+    const DEFAULT_INPUT_HEIGHT: f32 = 19.0;
+    const SYM_BTN_SIZE: f32 = DesktopApp::DEFAULT_INPUT_HEIGHT;
 
     pub fn new(asset_service: AssetService) -> Self {
         let mut app = Self {
@@ -90,12 +96,12 @@ impl DesktopApp {
             selected_category_id_for_value: None,
             asset_categories: Vec::new(),
 
-            add_asset_category_to_value_input_cnt: HashMap::new(),
+            add_asset_catgy_to_val_input_cnt: HashMap::new(),
 
             alloc_diagram_category_id: None,
             alloc_diagram_data: None,
 
-            category_id_to_selected_value_ids: HashMap::new(),
+            add_asset_catgy_id_to_val_inputs: HashMap::new(),
 
             status_message: None,
 
@@ -173,7 +179,7 @@ impl DesktopApp {
     fn reset_add_asset_page(&mut self) {
         self.asset_name_input.clear();
         self.reference_value_input.clear();
-        self.add_asset_category_to_value_input_cnt.clear();
+        self.add_asset_catgy_to_val_input_cnt.clear();
         self.selected_reference_type = AssetReferenceType::Isin;
     }
     
@@ -496,7 +502,7 @@ impl DesktopApp {
 
         self.reset_add_asset_page();
         self.reload_asset_categories();
-        self.category_id_to_selected_value_ids.clear();
+        self.add_asset_catgy_id_to_val_inputs.clear();
         self.status_message = None;
     }
 
@@ -534,77 +540,88 @@ impl DesktopApp {
         ui.label("Reference value:");
         ui.text_edit_singleline(&mut self.reference_value_input);
         ui.vertical(|ui| {
-            for category_item in &mut self.asset_categories {
+            for catgy_item in &mut self.asset_categories {
 
                 // get possible values for this category
-                let category = Category { id: category_item.id, name: category_item.name.clone() };
-                let selectable_values = self
+                let category = Category { id: catgy_item.id, name: catgy_item.name.clone() };
+                let selectable_vals = self
                     .asset_service
                     .list_asset_category_values(&category)
                     .unwrap_or_default();
 
                 // get category value ID of selected item or None
-                let selected_value_ids = self
-                    .category_id_to_selected_value_ids
-                    .entry(category_item.id)
+                let val_inputs = self
+                    .add_asset_catgy_id_to_val_inputs
+                    .entry(catgy_item.id)
                     .or_insert(Vec::new());
 
-                let input_cnt =
-                    *self.add_asset_category_to_value_input_cnt
-                        .entry(category_item.id)
+                let val_input_cnt =
+                    *self.add_asset_catgy_to_val_input_cnt
+                        .entry(catgy_item.id)
                         .or_insert(1) as usize;
 
                 ui.add_space(Self::SPACE_2);
                 ui.horizontal(|ui| {
-                    if input_cnt < selectable_values.len() {
+                    if val_input_cnt < selectable_vals.len() {
                         if ui
                             .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("+"))
                             .clicked()
                         {
-                            self.add_asset_category_to_value_input_cnt
-                                .entry(category_item.id)
-                                .and_modify(|cnt| *cnt = input_cnt as i64 + 1)
+                            self.add_asset_catgy_to_val_input_cnt
+                                .entry(catgy_item.id)
+                                .and_modify(|cnt| *cnt = val_input_cnt as i64 + 1)
                                 .or_insert(2);
                         }
                     }
-                    ui.label(format!(" {}:", &category_item.name));
+                    ui.label(format!(" {}:", &catgy_item.name));
                 });
                 ui.add_space(Self::SPACE_1);
 
 
-                selected_value_ids.resize(input_cnt, None);
-                for input_idx in (0..input_cnt).rev() {
+                val_inputs.resize_with(val_input_cnt, || CategoryValueInput { percentage: 0., id: None });
+                for input_idx in (0..val_input_cnt).rev() {
                     
-                    let selected_value_id = &mut selected_value_ids[input_idx];
-                    // get text of selected item or "Select..."
-                    let selected_text = selected_value_id
-                        .and_then(|id| selectable_values.iter().find(|v| v.id == id))
+                    let val_input = &mut val_inputs[input_idx];
+                    if val_input_cnt == 1 {
+                        val_input.percentage = 100.;
+                    }
+
+                    let selected_text = val_input.id
+                        .and_then(|id| selectable_vals.iter().find(|v| v.id == id))
                         .map(|v| v.name.clone())
                         .unwrap_or_else(|| "Select...".to_string());
 
                     ui.horizontal(|ui| {
-                        // show drop-down for selecting a value for this category
-                        egui::ComboBox::from_id_salt(format!("{}:{}", category_item.id, input_idx))
+                        ui.add_enabled_ui(val_input_cnt > 1, |ui| {
+                            ui.add_sized(
+                                [70.0, Self::DEFAULT_INPUT_HEIGHT],
+                                egui::DragValue::new(&mut val_input.percentage)
+                                    .range(0.0..=100.0)
+                                    .speed(0.1)
+                                    .fixed_decimals(2)
+                                    .suffix("%"),
+                            );
+                        });
+                        egui::ComboBox::from_id_salt(format!("{}:{}", catgy_item.id, input_idx))
                             .selected_text(selected_text)
                             .show_ui(ui, |ui| {
-                                for value in &selectable_values {
+                                for value in &selectable_vals {
                                     ui.selectable_value(
-                                        selected_value_id,
+                                        &mut val_input.id,
                                         Some(value.id),
                                         &value.name,
                                     );
                                 }
                             });
-                        if input_idx == input_cnt - 1 {
-                            if input_cnt > 1 {
+                        if input_idx == val_input_cnt - 1 {
+                            if val_input_cnt > 1 {
                                 if ui
                                     .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("-"))
                                     .clicked()
                                 {
-                                    self.add_asset_category_to_value_input_cnt
-                                        .entry(category_item.id)
-                                        .and_modify(|cnt| *cnt = input_cnt as i64 - 1)
-                                        .or_insert(2);
+                                    self.add_asset_catgy_to_val_input_cnt
+                                        .entry(catgy_item.id)
+                                        .and_modify(|cnt| *cnt = val_input_cnt as i64 - 1);
                                 }
                             }
                         }
@@ -617,10 +634,10 @@ impl DesktopApp {
 
             let mut category_value_ids: Vec<i64> = Vec::new();
             let mut category_value_not_set = false;
-            for (_, value_ids) in self.category_id_to_selected_value_ids.iter() {
-                for value_id in value_ids {
-                    if let Some(value_id) = value_id {
-                        category_value_ids.push(*value_id)
+            for (_, val_inputs) in self.add_asset_catgy_id_to_val_inputs.iter() {
+                for val_input in val_inputs {
+                    if let Some(id) = val_input.id {
+                        category_value_ids.push(id)
                     } else {
                         category_value_not_set = true;
                         break;
