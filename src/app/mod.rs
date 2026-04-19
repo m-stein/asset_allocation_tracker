@@ -1,5 +1,6 @@
 pub mod allocation_record;
 pub mod asset;
+pub mod asset_input;
 pub mod asset_reference_type;
 pub mod asset_reference;
 pub mod asset_service;

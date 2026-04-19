@@ -4,7 +4,9 @@ use eframe::egui;
 use egui_extras::DatePickerButton;
 use jiff::civil::Date;
 use jiff::Zoned;
+use strum::IntoEnumIterator;
 
+use crate::app::asset_input::AssetInput;
 use crate::app::asset_service::AssetService;
 use crate::app::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::app::category::Category;
@@ -37,10 +39,6 @@ enum Page {
 pub struct DesktopApp {
     asset_service: AssetService,
 
-    asset_name_input: String,
-    reference_value_input: String,
-    selected_reference_type: AssetReferenceType,
-
     allocation_record_date: Date,
     allocation_record_assets: Vec<PositionItem>,
 
@@ -58,6 +56,7 @@ pub struct DesktopApp {
     alloc_diagram_category_id: Option<i64>,
     alloc_diagram_data: Option<Vec<NamedDistribution>>,
 
+    add_asset_asset_input: AssetInput,
     add_asset_catgy_id_to_assignm_inputs: HashMap<i64, Vec<CategoryAssignmentInput>>,
 
     message: Option<String>,
@@ -76,9 +75,6 @@ impl DesktopApp {
     pub fn new(asset_service: AssetService) -> Self {
         let mut app = Self {
             asset_service,
-            asset_name_input: String::new(),
-            reference_value_input: String::new(),
-            selected_reference_type: AssetReferenceType::Isin,
 
             allocation_record_date: Zoned::now().date(),
             allocation_record_assets: Vec::new(),
@@ -92,6 +88,7 @@ impl DesktopApp {
             selected_category_id_for_value: None,
             asset_categories: Vec::new(),
 
+            add_asset_asset_input: AssetInput::default(),
             add_asset_catgy_id_to_assignm_input_cnt: HashMap::new(),
 
             alloc_diagram_category_id: None,
@@ -173,10 +170,8 @@ impl DesktopApp {
     }
 
     fn reset_add_asset_page(&mut self) {
-        self.asset_name_input.clear();
-        self.reference_value_input.clear();
+        self.add_asset_asset_input = AssetInput::default();
         self.add_asset_catgy_id_to_assignm_input_cnt.clear();
-        self.selected_reference_type = AssetReferenceType::Isin;
     }
     
     fn reset_add_category_page(&mut self) {
@@ -506,33 +501,22 @@ impl DesktopApp {
         ui.add_space(Self::SPACE_2);
 
         ui.label("Name:");
-        ui.text_edit_singleline(&mut self.asset_name_input);
+        ui.text_edit_singleline(&mut self.add_asset_asset_input.name);
         ui.add_space(Self::SPACE_2);
 
         ui.label("Reference type:");
         egui::ComboBox::from_id_salt("reference_type")
-            .selected_text(Self::reference_type_label(self.selected_reference_type))
+            .selected_text(Self::reference_type_label(self.add_asset_asset_input.reference_type))
             .show_ui(ui, |ui| {
-                ui.selectable_value(
-                    &mut self.selected_reference_type,
-                    AssetReferenceType::Iban,
-                    Self::reference_type_label(AssetReferenceType::Iban),
-                );
-                ui.selectable_value(
-                    &mut self.selected_reference_type,
-                    AssetReferenceType::Isin,
-                    Self::reference_type_label(AssetReferenceType::Isin),
-                );
-                ui.selectable_value(
-                    &mut self.selected_reference_type,
-                    AssetReferenceType::Ticker,
-                    Self::reference_type_label(AssetReferenceType::Ticker),
-                );
+                for t in AssetReferenceType::iter() {
+                    ui.selectable_value(
+                        &mut self.add_asset_asset_input.reference_type, t, Self::reference_type_label(t));
+                }
             });
         ui.add_space(Self::SPACE_2);
 
         ui.label("Reference value:");
-        ui.text_edit_singleline(&mut self.reference_value_input);
+        ui.text_edit_singleline(&mut self.add_asset_asset_input.reference_value);
         ui.vertical(|ui| {
             for catgy_item in &mut self.asset_categories {
 
@@ -626,13 +610,11 @@ impl DesktopApp {
         ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
             match self.asset_service.add_asset(
-                self.asset_name_input.clone(),
-                self.selected_reference_type,
-                self.reference_value_input.clone(),
+                &self.add_asset_asset_input,
                 &self.add_asset_catgy_id_to_assignm_inputs
             ) {
                 Ok(()) => {
-                    self.message = Some(format!("Asset '{}' was saved", self.asset_name_input.trim()));
+                    self.message = Some(format!("Asset '{}' was saved", self.add_asset_asset_input.name.trim()));
                     self.reset_add_asset_page();
                 }
                 Err(err) => {

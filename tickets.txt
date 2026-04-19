@@ -1,9 +1,9 @@
+Last added: T9
+
 Open
 ####
 
 T2: When navigating to "Allocation Diagram" the diagram is not updated
-
-T3: Support for having multiple differently weighted values for one category at an asset
 
 T4: Let allocation diagram show the development over multiple consecutive records
 
@@ -16,9 +16,13 @@ T7: The user input on each page should be reset on successful save only but not 
 T8: Allocation records must remember not only assets but also their values at record creation time
     in order to stay constant over changes to asset values
 
+T9: When an allocation record has only one value for a category, the pie chart looks funny
+
 
 Closed
 ######
+
+T3: Support for having multiple differently weighted values for one category at an asset
 
 T1: Successful save in any page navigates one back to page "Allocation Diagram"
 

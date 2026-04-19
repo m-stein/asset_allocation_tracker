@@ -4,6 +4,7 @@ use jiff::civil::Date;
 
 use crate::app::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::app::asset::Asset;
+use crate::app::asset_input::AssetInput;
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
 use crate::app::asset_reference::AssetReference;
@@ -12,7 +13,6 @@ use crate::app::category_value::CategoryValue;
 use crate::app::category_assignment::CategoryAssignment;
 use crate::app::category_assignment_input::CategoryAssignmentInput;
 use crate::app::named_distribution::NamedDistribution;
-use crate::app::asset_reference_type::AssetReferenceType;
 
 pub struct AssetService {
     repository: Box<dyn AssetRepository>,
@@ -52,19 +52,18 @@ impl AssetService {
 
     pub fn add_asset(
         &mut self,
-        name: String,
-        reference_type: AssetReferenceType,
-        reference_value: String,
+        asset_input: &AssetInput,
         catgy_id_to_assignm_inputs: &HashMap<i64, Vec<CategoryAssignmentInput>>,
     ) -> Result<(), AppError> {
-        let name = name.trim();
+        let name = asset_input.name.trim();
         if name.is_empty() {
             return Err(AppError::Validation(
                 "Asset name must not be empty".into(),
             ));
         }
-        let reference = AssetReference::new(reference_type, reference_value)
-            .map_err(AppError::Validation)?;
+        let reference = AssetReference::new(
+            asset_input.reference_type, asset_input.reference_value.clone()
+        ).map_err(AppError::Validation)?;
 
         let asset = Asset {
             id: 0,
