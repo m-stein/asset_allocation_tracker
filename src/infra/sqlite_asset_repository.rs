@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
+
 use rusqlite::{Connection, OptionalExtension, params};
+
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
@@ -8,6 +10,7 @@ use crate::domain::asset::Asset;
 use crate::domain::asset_reference::AssetReference;
 use crate::domain::category::Category;
 use crate::domain::category_value::CategoryValue;
+use crate::domain::category_assignment::CategoryAssignment;
 use crate::domain::named_distribution::NamedDistribution;
 use crate::domain::asset_reference_type::AssetReferenceType;
 
@@ -102,6 +105,7 @@ impl SqliteAssetRepository {
                 CREATE TABLE IF NOT EXISTS asset_category_value_assignments (
                     asset_id INTEGER NOT NULL,
                     asset_category_value_id INTEGER NOT NULL,
+                    ratio DECIMAL(5,4) CHECK (ratio >= 0 AND ratio <= 1) NOT NULL,
                     PRIMARY KEY (asset_id, asset_category_value_id),
                     FOREIGN KEY (asset_id) REFERENCES assets(id),
                     FOREIGN KEY (asset_category_value_id) REFERENCES asset_category_values(id)
@@ -233,7 +237,7 @@ impl AssetRepository for SqliteAssetRepository {
         Ok(())
     }
 
-    fn add_asset(&mut self, asset: &Asset, category_value_ids: &Vec<i64>) -> Result<(), AppError> {
+    fn add_asset(&mut self, asset: &Asset, catgy_assignms: &Vec<CategoryAssignment>) -> Result<(), AppError> {
         let tx = self.connection
             .transaction()
             .map_err(|e| AppError::Storage(e.to_string()))?;
@@ -249,21 +253,18 @@ impl AssetRepository for SqliteAssetRepository {
         .map_err(|e| AppError::Storage(e.to_string()))?;
 
         let asset_id = tx.last_insert_rowid();
-        for category_value_id in category_value_ids.iter() {
+        for assignm in catgy_assignms.iter() {
             tx.execute(
                 "
                 INSERT INTO asset_category_value_assignments
-                (asset_id, asset_category_value_id)
-                VALUES (?1, ?2)
+                (asset_id, asset_category_value_id, ratio)
+                VALUES (?1, ?2, ?3)
                 ",
-                params![asset_id, category_value_id],
+                params![asset_id, assignm.value_id, assignm.ratio],
             )
             .map_err(|e| AppError::Storage(e.to_string()))?;
         }
-
-        tx.commit()
-            .map_err(|e| AppError::Storage(e.to_string()))?;
-
+        tx.commit().map_err(|e| AppError::Storage(e.to_string()))?;
         Ok(())
     }
 

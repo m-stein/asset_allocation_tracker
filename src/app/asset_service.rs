@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use jiff::civil::Date;
+
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::asset::Asset;
 use crate::app::error::AppError;
@@ -5,9 +9,10 @@ use crate::app::repository::AssetRepository;
 use crate::domain::asset_reference::AssetReference;
 use crate::domain::category::Category;
 use crate::domain::category_value::CategoryValue;
+use crate::domain::category_assignment::CategoryAssignment;
+use crate::domain::category_assignment_input::CategoryAssignmentInput;
 use crate::domain::named_distribution::NamedDistribution;
 use crate::domain::asset_reference_type::AssetReferenceType;
-use jiff::civil::Date;
 
 pub struct AssetService {
     repository: Box<dyn AssetRepository>,
@@ -50,16 +55,14 @@ impl AssetService {
         name: String,
         reference_type: AssetReferenceType,
         reference_value: String,
-        category_value_ids: &Vec<i64>,
+        catgy_id_to_assignm_inputs: &HashMap<i64, Vec<CategoryAssignmentInput>>,
     ) -> Result<(), AppError> {
         let name = name.trim();
-
         if name.is_empty() {
             return Err(AppError::Validation(
                 "Asset name must not be empty".into(),
             ));
         }
-
         let reference = AssetReference::new(reference_type, reference_value)
             .map_err(AppError::Validation)?;
 
@@ -68,8 +71,17 @@ impl AssetService {
             name: name.to_string(),
             reference,
         };
-
-        self.repository.add_asset(&asset, category_value_ids)
+        let mut catgy_assignms: Vec<CategoryAssignment> = Vec::new();
+        for (_, assignm_inputs) in catgy_id_to_assignm_inputs.iter() {
+            for assignm_input in assignm_inputs {
+                if let Some(id) = assignm_input.value_id {
+                    catgy_assignms.push(CategoryAssignment { value_id: id, ratio: assignm_input.percentage / 100. })
+                } else {
+                    return Err(AppError::Validation("Unset catgory value".into()));
+                };
+            }
+        }
+        self.repository.add_asset(&asset, &catgy_assignms)
     }
     
     pub fn list_assets(&self) -> Result<Vec<Asset>, AppError> {

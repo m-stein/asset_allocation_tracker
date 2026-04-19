@@ -8,6 +8,7 @@ use jiff::Zoned;
 use crate::app::asset_service::AssetService;
 use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::domain::category::Category;
+use crate::domain::category_assignment_input::CategoryAssignmentInput;
 use crate::domain::named_distribution::NamedDistribution;
 use crate::domain::asset_reference_type::AssetReferenceType;
 use crate::ui::desktop_app::pie_chart::draw_pie_chart;
@@ -33,11 +34,6 @@ enum Page {
     AddAllocationRecord,
 }
 
-struct CategoryValueInput {
-    pub percentage: f32,
-    pub id: Option<i64>,
-}
-
 pub struct DesktopApp {
     asset_service: AssetService,
 
@@ -57,14 +53,14 @@ pub struct DesktopApp {
     selected_category_id_for_value: Option<i64>,
     asset_categories: Vec<CategoryItem>,
 
-    add_asset_catgy_to_val_input_cnt: HashMap<i64, i64>,
+    add_asset_catgy_id_to_assignm_input_cnt: HashMap<i64, i64>,
 
     alloc_diagram_category_id: Option<i64>,
     alloc_diagram_data: Option<Vec<NamedDistribution>>,
 
-    add_asset_catgy_id_to_val_inputs: HashMap<i64, Vec<CategoryValueInput>>,
+    add_asset_catgy_id_to_assignm_inputs: HashMap<i64, Vec<CategoryAssignmentInput>>,
 
-    status_message: Option<String>,
+    message: Option<String>,
 
     page: Page,
 }
@@ -96,14 +92,14 @@ impl DesktopApp {
             selected_category_id_for_value: None,
             asset_categories: Vec::new(),
 
-            add_asset_catgy_to_val_input_cnt: HashMap::new(),
+            add_asset_catgy_id_to_assignm_input_cnt: HashMap::new(),
 
             alloc_diagram_category_id: None,
             alloc_diagram_data: None,
 
-            add_asset_catgy_id_to_val_inputs: HashMap::new(),
+            add_asset_catgy_id_to_assignm_inputs: HashMap::new(),
 
-            status_message: None,
+            message: None,
 
             page: Page::AllocationDiagram,
         };
@@ -117,11 +113,11 @@ impl DesktopApp {
         match self.asset_service.get_latest_allocation_record() {
             Ok(record) => {
                 self.latest_allocation_record = record;
-                self.status_message = None;
+                self.message = None;
             }
             Err(err) => {
                 self.latest_allocation_record = None;
-                self.status_message = Some(err.to_string());
+                self.message = Some(err.to_string());
             }
         }
     }
@@ -142,7 +138,7 @@ impl DesktopApp {
                     .map(|category| category.id);
             }
             Err(err) => {
-                self.status_message = Some(err.to_string());
+                self.message = Some(err.to_string());
             }
         }
     }
@@ -179,7 +175,7 @@ impl DesktopApp {
     fn reset_add_asset_page(&mut self) {
         self.asset_name_input.clear();
         self.reference_value_input.clear();
-        self.add_asset_catgy_to_val_input_cnt.clear();
+        self.add_asset_catgy_id_to_assignm_input_cnt.clear();
         self.selected_reference_type = AssetReferenceType::Isin;
     }
     
@@ -204,7 +200,7 @@ impl DesktopApp {
                 }
             }
             Err(err) => {
-                self.status_message = Some(err.to_string());
+                self.message = Some(err.to_string());
             }
         }
     }
@@ -227,7 +223,7 @@ impl DesktopApp {
     fn init_add_allocation_record_page(&mut self) {
         self.reload_asset_list_for_allocation_record();
         self.reset_add_allocation_record_page();
-        self.status_message = None;
+        self.message = None;
     }
 
     fn show_add_allocation_record_page(&mut self, ui: &mut egui::Ui) {
@@ -293,21 +289,21 @@ impl DesktopApp {
             }
 
             if let Some(message) = validation_error {
-                self.status_message = Some(message);
+                self.message = Some(message);
             } else {
                 match self.asset_service.add_allocation_record(
                     self.allocation_record_date,
                     positions,
                 ) {
                     Ok(()) => {
-                        self.status_message = Some(format!(
+                        self.message = Some(format!(
                             "Allocation record '{}' was saved.",
                             self.allocation_record_date.to_string()
                         ));
                         self.reset_add_allocation_record_page();
                     }
                     Err(err) => {
-                        self.status_message = Some(err.to_string());
+                        self.message = Some(err.to_string());
                     }
                 }
             }
@@ -352,7 +348,7 @@ impl DesktopApp {
                     }
                     Err(err) => {
                         self.alloc_diagram_data = None;
-                        self.status_message = Some(err.to_string());
+                        self.message = Some(err.to_string());
                     }
                 }
             } else {
@@ -421,13 +417,13 @@ impl DesktopApp {
 
     fn init_add_category_page(&mut self) {
         self.reset_add_category_page();
-        self.status_message = None;
+        self.message = None;
     }
 
     fn init_add_category_value_page(&mut self) {
         self.reload_asset_categories();
         self.reset_add_category_value_page();
-        self.status_message = None;
+        self.message = None;
     }
     
     fn show_add_category_value_page(&mut self, ui: &mut egui::Ui) {
@@ -453,7 +449,7 @@ impl DesktopApp {
         ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
             let Some(category_id) = self.selected_category_id_for_value else {
-                self.status_message = Some("Please select a category.".into());
+                self.message = Some("Please select a category.".into());
                 return;
             };
             match self.asset_service.add_asset_category_value(
@@ -461,14 +457,14 @@ impl DesktopApp {
                 self.category_value_name_input.clone(),
             ) {
                 Ok(()) => {
-                    self.status_message = Some(format!(
+                    self.message = Some(format!(
                         "Category value '{}' was saved.",
                         self.category_value_name_input.trim()
                     ));
                     self.reset_add_category_value_page();
                 }
                 Err(err) => {
-                    self.status_message = Some(err.to_string());
+                    self.message = Some(err.to_string());
                 }
             }
         }
@@ -487,12 +483,12 @@ impl DesktopApp {
                 self.category_name_input.clone(),
             ) {
                 Ok(()) => {
-                    self.status_message = Some(format!(
+                    self.message = Some(format!(
                         "Category '{}' was saved.", self.category_name_input.trim()
                     ));
                 }
                 Err(err) => {
-                    self.status_message = Some(err.to_string());
+                    self.message = Some(err.to_string());
                 }
             }
         }
@@ -502,8 +498,8 @@ impl DesktopApp {
 
         self.reset_add_asset_page();
         self.reload_asset_categories();
-        self.add_asset_catgy_id_to_val_inputs.clear();
-        self.status_message = None;
+        self.add_asset_catgy_id_to_assignm_inputs.clear();
+        self.message = None;
     }
 
     fn show_add_asset_page(&mut self, ui: &mut egui::Ui) {
@@ -542,34 +538,32 @@ impl DesktopApp {
         ui.vertical(|ui| {
             for catgy_item in &mut self.asset_categories {
 
-                // get possible values for this category
-                let category = Category { id: catgy_item.id, name: catgy_item.name.clone() };
+                let catgy = Category { id: catgy_item.id, name: catgy_item.name.clone() };
                 let selectable_vals = self
                     .asset_service
-                    .list_asset_category_values(&category)
+                    .list_asset_category_values(&catgy)
                     .unwrap_or_default();
 
-                // get category value ID of selected item or None
-                let val_inputs = self
-                    .add_asset_catgy_id_to_val_inputs
+                let assignm_inputs = self
+                    .add_asset_catgy_id_to_assignm_inputs
                     .entry(catgy_item.id)
                     .or_insert(Vec::new());
 
-                let val_input_cnt =
-                    *self.add_asset_catgy_to_val_input_cnt
+                let assignm_input_cnt =
+                    *self.add_asset_catgy_id_to_assignm_input_cnt
                         .entry(catgy_item.id)
                         .or_insert(1) as usize;
 
                 ui.add_space(Self::SPACE_2);
                 ui.horizontal(|ui| {
-                    if val_input_cnt < selectable_vals.len() {
+                    if assignm_input_cnt < selectable_vals.len() {
                         if ui
                             .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("+"))
                             .clicked()
                         {
-                            self.add_asset_catgy_to_val_input_cnt
+                            self.add_asset_catgy_id_to_assignm_input_cnt
                                 .entry(catgy_item.id)
-                                .and_modify(|cnt| *cnt = val_input_cnt as i64 + 1)
+                                .and_modify(|cnt| *cnt = assignm_input_cnt as i64 + 1)
                                 .or_insert(2);
                         }
                     }
@@ -578,24 +572,26 @@ impl DesktopApp {
                 ui.add_space(Self::SPACE_1);
 
 
-                val_inputs.resize_with(val_input_cnt, || CategoryValueInput { percentage: 0., id: None });
-                for input_idx in (0..val_input_cnt).rev() {
+                assignm_inputs.resize_with(
+                    assignm_input_cnt, || CategoryAssignmentInput { value_id: None, percentage: 0. });
+
+                for input_idx in (0..assignm_input_cnt).rev() {
                     
-                    let val_input = &mut val_inputs[input_idx];
-                    if val_input_cnt == 1 {
-                        val_input.percentage = 100.;
+                    let assignm_input = &mut assignm_inputs[input_idx];
+                    if assignm_input_cnt == 1 {
+                        assignm_input.percentage = 100.;
                     }
 
-                    let selected_text = val_input.id
-                        .and_then(|id| selectable_vals.iter().find(|v| v.id == id))
-                        .map(|v| v.name.clone())
+                    let selected_text = assignm_input.value_id
+                        .and_then(|id| selectable_vals.iter().find(|val| val.id == id))
+                        .map(|val| val.name.clone())
                         .unwrap_or_else(|| "Select...".to_string());
 
                     ui.horizontal(|ui| {
-                        ui.add_enabled_ui(val_input_cnt > 1, |ui| {
+                        ui.add_enabled_ui(assignm_input_cnt > 1, |ui| {
                             ui.add_sized(
                                 [70.0, Self::DEFAULT_INPUT_HEIGHT],
-                                egui::DragValue::new(&mut val_input.percentage)
+                                egui::DragValue::new(&mut assignm_input.percentage)
                                     .range(0.0..=100.0)
                                     .speed(0.1)
                                     .fixed_decimals(2)
@@ -607,21 +603,21 @@ impl DesktopApp {
                             .show_ui(ui, |ui| {
                                 for value in &selectable_vals {
                                     ui.selectable_value(
-                                        &mut val_input.id,
+                                        &mut assignm_input.value_id,
                                         Some(value.id),
                                         &value.name,
                                     );
                                 }
                             });
-                        if input_idx == val_input_cnt - 1 {
-                            if val_input_cnt > 1 {
+                        if input_idx == assignm_input_cnt - 1 {
+                            if assignm_input_cnt > 1 {
                                 if ui
                                     .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("-"))
                                     .clicked()
                                 {
-                                    self.add_asset_catgy_to_val_input_cnt
+                                    self.add_asset_catgy_id_to_assignm_input_cnt
                                         .entry(catgy_item.id)
-                                        .and_modify(|cnt| *cnt = val_input_cnt as i64 - 1);
+                                        .and_modify(|cnt| *cnt = assignm_input_cnt as i64 - 1);
                                 }
                             }
                         }
@@ -631,38 +627,18 @@ impl DesktopApp {
         });
         ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
-
-            let mut category_value_ids: Vec<i64> = Vec::new();
-            let mut category_value_not_set = false;
-            for (_, val_inputs) in self.add_asset_catgy_id_to_val_inputs.iter() {
-                for val_input in val_inputs {
-                    if let Some(id) = val_input.id {
-                        category_value_ids.push(id)
-                    } else {
-                        category_value_not_set = true;
-                        break;
-                    };
+            match self.asset_service.add_asset(
+                self.asset_name_input.clone(),
+                self.selected_reference_type,
+                self.reference_value_input.clone(),
+                &self.add_asset_catgy_id_to_assignm_inputs
+            ) {
+                Ok(()) => {
+                    self.message = Some(format!("Asset '{}' was saved", self.asset_name_input.trim()));
+                    self.reset_add_asset_page();
                 }
-            }
-            if category_value_not_set {
-                self.status_message = Some("All category values must be set".into());
-            } else {
-                match self.asset_service.add_asset(
-                    self.asset_name_input.clone(),
-                    self.selected_reference_type,
-                    self.reference_value_input.clone(),
-                    &category_value_ids
-                ) {
-                    Ok(()) => {
-                        self.status_message = Some(format!(
-                            "Asset '{}' was saved.",
-                            self.asset_name_input.trim()
-                        ));
-                        self.reset_add_asset_page();
-                    }
-                    Err(err) => {
-                        self.status_message = Some(err.to_string());
-                    }
+                Err(err) => {
+                    self.message = Some(err.to_string());
                 }
             }
         }
@@ -695,7 +671,7 @@ impl eframe::App for DesktopApp {
 
                     ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
                     ui.add_space(Self::SPACE_2);
-                    if let Some(message) = &self.status_message {
+                    if let Some(message) = &self.message {
                         ui.label(message);
                     }
                 });
