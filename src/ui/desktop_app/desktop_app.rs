@@ -237,19 +237,17 @@ impl DesktopApp {
         ui.add_space(Self::SPACE_2);
         ui.label("Positions:");
 
-        egui::ScrollArea::vertical()
-            .max_height(260.0)
-            .show(ui, |ui| {
-                for asset in &mut self.allocation_record_assets {
-                    ui.horizontal(|ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut asset.amount_input)
-                                .desired_width(80.0),
-                        );
-                        ui.label(&asset.label);
-                    });
-                }
-            });
+        ui.vertical(|ui| {
+            for asset in &mut self.allocation_record_assets {
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut asset.amount_input)
+                            .desired_width(80.0),
+                    );
+                    ui.label(&asset.label);
+                });
+            }
+        });
 
         ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
