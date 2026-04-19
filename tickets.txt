@@ -1,0 +1,25 @@
+Open
+####
+
+T2: When navigating to "Allocation Diagram" the diagram is not updated
+
+T3: Support for having multiple differently weighted values for one category at an asset
+
+T4: Let allocation diagram show the development over multiple consecutive records
+
+T5: Allow for configuring one target allocation per category
+
+T6: Allow for adding assets that lack category values and show them as "Unknown" in diagrams
+
+T7: The user input on each page should be reset on successful save only but not when leaving the page
+
+T8: Allocation records must remember not only assets but also their values at record creation time
+    in order to stay constant over changes to asset values
+
+
+Closed
+######
+
+T1: Successful save in any page navigates one back to page "Allocation Diagram"
+
+T0: Basic prototype that can create and visualize allocation records
