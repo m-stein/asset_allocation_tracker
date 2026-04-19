@@ -1,6 +1,6 @@
 use egui::{Color32, Pos2, Shape, Stroke};
 
-use crate::domain::named_distribution::NamedDistribution;
+use crate::app::named_distribution::NamedDistribution;
 
 
 pub fn draw_pie_chart(ui: &mut egui::Ui, data: &[NamedDistribution]) {

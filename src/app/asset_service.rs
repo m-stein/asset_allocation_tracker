@@ -2,17 +2,17 @@ use std::collections::HashMap;
 
 use jiff::civil::Date;
 
-use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
-use crate::domain::asset::Asset;
+use crate::app::allocation_record::{AllocationPosition, AllocationRecord};
+use crate::app::asset::Asset;
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
-use crate::domain::asset_reference::AssetReference;
-use crate::domain::category::Category;
-use crate::domain::category_value::CategoryValue;
-use crate::domain::category_assignment::CategoryAssignment;
-use crate::domain::category_assignment_input::CategoryAssignmentInput;
-use crate::domain::named_distribution::NamedDistribution;
-use crate::domain::asset_reference_type::AssetReferenceType;
+use crate::app::asset_reference::AssetReference;
+use crate::app::category::Category;
+use crate::app::category_value::CategoryValue;
+use crate::app::category_assignment::CategoryAssignment;
+use crate::app::category_assignment_input::CategoryAssignmentInput;
+use crate::app::named_distribution::NamedDistribution;
+use crate::app::asset_reference_type::AssetReferenceType;
 
 pub struct AssetService {
     repository: Box<dyn AssetRepository>,

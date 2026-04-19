@@ -1,3 +1,12 @@
+pub mod allocation_record;
+pub mod asset;
+pub mod asset_reference_type;
+pub mod asset_reference;
 pub mod asset_service;
+pub mod category;
+pub mod category_value;
+pub mod category_assignment;
+pub mod category_assignment_input;
 pub mod error;
+pub mod named_distribution;
 pub mod repository;

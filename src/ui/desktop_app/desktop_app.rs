@@ -6,11 +6,11 @@ use jiff::civil::Date;
 use jiff::Zoned;
 
 use crate::app::asset_service::AssetService;
-use crate::domain::allocation_record::{AllocationPosition, AllocationRecord};
-use crate::domain::category::Category;
-use crate::domain::category_assignment_input::CategoryAssignmentInput;
-use crate::domain::named_distribution::NamedDistribution;
-use crate::domain::asset_reference_type::AssetReferenceType;
+use crate::app::allocation_record::{AllocationPosition, AllocationRecord};
+use crate::app::category::Category;
+use crate::app::category_assignment_input::CategoryAssignmentInput;
+use crate::app::named_distribution::NamedDistribution;
+use crate::app::asset_reference_type::AssetReferenceType;
 use crate::ui::desktop_app::pie_chart::draw_pie_chart;
 
 pub struct PositionItem {

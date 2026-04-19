@@ -1,4 +1,4 @@
-use crate::domain::asset_reference_type::AssetReferenceType;
+use crate::app::asset_reference_type::AssetReferenceType;
 
 
 #[derive(Debug, Clone)]

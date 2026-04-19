@@ -1,4 +1,4 @@
-use crate::domain::asset_reference::AssetReference;
+use crate::app::asset_reference::AssetReference;
 
 #[derive(Debug, Clone)]
 pub struct Asset {

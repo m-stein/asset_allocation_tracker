@@ -1,11 +1,11 @@
 use crate::app::error::AppError;
 
-use crate::domain::allocation_record::AllocationRecord;
-use crate::domain::asset::Asset;
-use crate::domain::category::Category;
-use crate::domain::category_value::CategoryValue;
-use crate::domain::category_assignment::CategoryAssignment;
-use crate::domain::named_distribution::NamedDistribution;
+use crate::app::allocation_record::AllocationRecord;
+use crate::app::asset::Asset;
+use crate::app::category::Category;
+use crate::app::category_value::CategoryValue;
+use crate::app::category_assignment::CategoryAssignment;
+use crate::app::named_distribution::NamedDistribution;
 
 pub trait AssetRepository {
     fn add_asset(&mut self, asset: &Asset, catgy_assignms: &Vec<CategoryAssignment>) -> Result<(), AppError>;
