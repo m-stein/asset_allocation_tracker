@@ -136,7 +136,7 @@ impl AssetRepository for SqliteAssetRepository {
             SELECT
                 acv.id,
                 acv.name,
-                SUM(arp.amount) AS value_amount
+                SUM(arp.amount * acva.ratio) AS value_amount
             FROM allocation_record_positions arp
             JOIN latest_record lr ON arp.allocation_record_id = lr.id
             JOIN assets a ON a.id = arp.asset_id

@@ -12,8 +12,8 @@ pub fn draw_pie_chart(ui: &mut egui::Ui, data: &[NamedDistribution]) {
     let center = rect.center();
     let radius = rect.width().min(rect.height()) / 2.0;
 
-    let mut start_angle = 0.0;
-    let mut total_amount = 0;
+    let mut start_angle = 0.;
+    let mut total_amount = 0.;
     for entry in data {
         total_amount += entry.amount
     }
