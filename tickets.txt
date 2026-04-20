@@ -16,8 +16,6 @@ T7: The user input on each page should be reset on successful save only but not 
 T8: Allocation records must remember not only assets but also their values at record creation time
     in order to stay constant over changes to asset values
 
-T9: When an allocation record has only one value for a category, the pie chart looks funny
-
 
 Closed
 ######
@@ -27,3 +25,5 @@ T3: Support for having multiple differently weighted values for one category at 
 T1: Successful save in any page navigates one back to page "Allocation Diagram"
 
 T0: Basic prototype that can create and visualize allocation records
+
+T9: When an allocation record has only one value for a category, the pie chart looks funny
