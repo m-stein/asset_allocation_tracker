@@ -1,2 +1,2 @@
 pub mod desktop_app;
-mod pie_chart;
+mod distribution_history;

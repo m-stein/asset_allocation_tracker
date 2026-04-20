@@ -11,7 +11,7 @@ use crate::app::asset_reference::AssetReference;
 use crate::app::category::Category;
 use crate::app::category_value::CategoryValue;
 use crate::app::category_assignment::CategoryAssignment;
-use crate::app::named_distribution::NamedDistribution;
+use crate::app::named_distribution::{DatedDistribution, NamedDistribution};
 use crate::app::asset_reference_type::AssetReferenceType;
 
 pub struct SqliteAssetRepository {
@@ -123,41 +123,56 @@ impl AssetRepository for SqliteAssetRepository {
     fn get_distribution_for_category(
         &self,
         category_id: i64,
-    ) -> Result<Vec<NamedDistribution>, AppError> {
-
+        days: i64,
+    ) -> Result<Vec<DatedDistribution>, AppError> {
         let mut stmt = self.connection.prepare(
             r#"
-            WITH latest_record AS (
-                SELECT id
+            WITH latest_records AS (
+                SELECT id, date
                 FROM allocation_records
                 ORDER BY date DESC
-                LIMIT 1
+                LIMIT ?2
             )
             SELECT
-                acv.id,
+                lr.date,
                 acv.name,
-                SUM(arp.amount * acva.ratio) AS value_amount
+                SUM(arp.amount * CAST(acva.ratio AS REAL)) AS value_amount
             FROM allocation_record_positions arp
-            JOIN latest_record lr ON arp.allocation_record_id = lr.id
+            JOIN latest_records lr ON arp.allocation_record_id = lr.id
             JOIN assets a ON a.id = arp.asset_id
             JOIN asset_category_value_assignments acva ON acva.asset_id = a.id
             JOIN asset_category_values acv ON acv.id = acva.asset_category_value_id
             WHERE acv.asset_category_id = ?1
-            GROUP BY acv.id, acv.name
-            ORDER BY value_amount DESC;
+            GROUP BY lr.id, lr.date, acv.id, acv.name
+            ORDER BY lr.date DESC, value_amount DESC;
             "#
         )?;
 
-        let rows = stmt.query_map(params![category_id], |row| {
-            Ok(NamedDistribution {
-                name: row.get(1)?,
-                amount: row.get(2)?,
-            })
+        let rows = stmt.query_map(params![category_id, days], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                NamedDistribution {
+                    name: row.get(1)?,
+                    amount: row.get(2)?,
+                },
+            ))
         })?;
 
-        let mut result = Vec::new();
+        let mut result: Vec<DatedDistribution> = Vec::new();
+
         for row in rows {
-            result.push(row?);
+            let (date, distribution) = row?;
+
+            if let Some(last) = result.last_mut()
+                && last.date == date
+            {
+                last.values.push(distribution);
+            } else {
+                result.push(DatedDistribution {
+                    date,
+                    values: vec![distribution],
+                });
+            }
         }
 
         Ok(result)

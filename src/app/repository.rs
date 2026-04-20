@@ -5,7 +5,7 @@ use crate::app::asset::Asset;
 use crate::app::category::Category;
 use crate::app::category_value::CategoryValue;
 use crate::app::category_assignment::CategoryAssignment;
-use crate::app::named_distribution::NamedDistribution;
+use crate::app::named_distribution::DatedDistribution;
 
 pub trait AssetRepository {
     fn add_asset(&mut self, asset: &Asset, catgy_assignms: &Vec<CategoryAssignment>) -> Result<(), AppError>;
@@ -25,5 +25,6 @@ pub trait AssetRepository {
     fn get_distribution_for_category(
         &self,
         category_id: i64,
-    ) -> Result<Vec<NamedDistribution>, AppError>;
+        days: i64,
+    ) -> Result<Vec<DatedDistribution>, AppError>;
 }

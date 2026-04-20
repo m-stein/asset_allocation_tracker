@@ -12,7 +12,7 @@ use crate::app::category::Category;
 use crate::app::category_value::CategoryValue;
 use crate::app::category_assignment::CategoryAssignment;
 use crate::app::category_assignment_input::CategoryAssignmentInput;
-use crate::app::named_distribution::NamedDistribution;
+use crate::app::named_distribution::DatedDistribution;
 
 pub struct AssetService {
     repository: Box<dyn AssetRepository>,
@@ -46,8 +46,9 @@ impl AssetService {
     pub fn get_distribution_for_category(
         &self,
         category_id: i64,
-    ) -> Result<Vec<NamedDistribution>, AppError> {
-        self.repository.get_distribution_for_category(category_id)
+        days: i64,
+    ) -> Result<Vec<DatedDistribution>, AppError> {
+        self.repository.get_distribution_for_category(category_id, days)
     }
 
     pub fn add_asset(

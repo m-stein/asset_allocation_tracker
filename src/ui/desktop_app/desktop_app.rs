@@ -11,9 +11,9 @@ use crate::app::asset_service::AssetService;
 use crate::app::allocation_record::{AllocationPosition, AllocationRecord};
 use crate::app::category::Category;
 use crate::app::category_assignment_input::CategoryAssignmentInput;
-use crate::app::named_distribution::NamedDistribution;
+use crate::app::named_distribution::DatedDistribution;
 use crate::app::asset_reference_type::AssetReferenceType;
-use crate::ui::desktop_app::pie_chart::draw_pie_chart;
+use crate::ui::desktop_app::distribution_history::draw_distribution_history;
 
 pub struct PositionItem {
     pub id: i64,
@@ -54,7 +54,7 @@ pub struct DesktopApp {
     add_asset_catgy_id_to_assignm_input_cnt: HashMap<i64, i64>,
 
     alloc_diagram_category_id: Option<i64>,
-    alloc_diagram_data: Option<Vec<NamedDistribution>>,
+    alloc_diagram_data: Option<Vec<DatedDistribution>>,
 
     add_asset_asset_input: AssetInput,
     add_asset_catgy_id_to_assignm_inputs: HashMap<i64, Vec<CategoryAssignmentInput>>,
@@ -335,7 +335,7 @@ impl DesktopApp {
 
         if prev_category_id != self.alloc_diagram_category_id {
             if let Some(category_id) = self.alloc_diagram_category_id {
-                match self.asset_service.get_distribution_for_category(category_id) {
+                match self.asset_service.get_distribution_for_category(category_id, 5) {
                     Ok(data) => {
                         self.alloc_diagram_data = Some(data)
                     }
@@ -350,8 +350,8 @@ impl DesktopApp {
             }
             ui.add_space(Self::SPACE_2);
         }
-        if let Some(data) = self.alloc_diagram_data.as_ref() {
-            draw_pie_chart(ui, &data);
+        if let Some(distr_history) = self.alloc_diagram_data.as_ref() {
+            draw_distribution_history(ui, self.allocation_diagram_category_selected_text(), distr_history);
         } else if let Some(record) = &self.latest_allocation_record {
             let total: i64 = record.positions.iter().map(|p| p.amount).sum();
 

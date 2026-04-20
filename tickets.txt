@@ -1,11 +1,9 @@
-Last added: T9
+Last added: T12
 
 Open
 ####
 
 T2: When navigating to "Allocation Diagram" the diagram is not updated
-
-T4: Let allocation diagram show the development over multiple consecutive records
 
 T5: Allow for configuring one target allocation per category
 
@@ -15,6 +13,12 @@ T7: The user input on each page should be reset on successful save only but not 
 
 T8: Allocation records must remember not only assets but also their values at record creation time
     in order to stay constant over changes to asset values
+
+T10: All categories and values should be configurable in one page
+
+T11: The allocation diagram never shows more than 5 days into the past although more days are available
+
+T12: The allocation diagram should go from left to right from oldest to newest date
 
 
 Closed
@@ -27,3 +31,5 @@ T1: Successful save in any page navigates one back to page "Allocation Diagram"
 T0: Basic prototype that can create and visualize allocation records
 
 T9: When an allocation record has only one value for a category, the pie chart looks funny
+
+T4: Let allocation diagram show the development over multiple consecutive records
