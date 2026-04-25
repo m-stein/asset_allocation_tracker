@@ -5,11 +5,11 @@ use std::collections::BTreeMap;
 use ron::ser::PrettyConfig;
 use rusqlite::{Connection, params};
 
-use crate::app::allocation_record_ron::{AllocationPositionRon, AllocationRecordRon, AssetCategoryRon, AssetCategoryValueRon, AssetReferenceRon, AssetRon};
+use crate::app::allocation_record::{AllocationPosition, AllocationRecord, AllocationAssetCategory, AllocationCategoryValue, AllocationAsset};
 use crate::app::asset_reference_type::AssetReferenceType;
 use crate::app::error::AppError;
 use crate::app::repository::AssetRepository;
-use crate::app::new_allocation_record::NewAllocationRecord;
+use crate::app::allocation_record_input::AllocationRecordInput;
 use crate::app::asset::Asset;
 use crate::app::asset_reference::AssetReference;
 use crate::app::category::Category;
@@ -40,7 +40,7 @@ impl SqliteAssetRepository {
         Ok(repository)
     }
 
-    fn load_asset_ron(&self, asset_id: i64) -> Result<AssetRon, AppError> {
+    fn load_asset_ron(&self, asset_id: i64) -> Result<AllocationAsset, AppError> {
         let (name, reference_type_str, reference_value): (String, String, String) = self.connection
             .query_row(
                 "SELECT name, reference_type, reference_value
@@ -76,14 +76,14 @@ impl SqliteAssetRepository {
             })
             .map_err(|e| AppError::Storage(e.to_string()))?;
 
-        let mut map: BTreeMap<String, Vec<AssetCategoryValueRon>> = BTreeMap::new();
+        let mut map: BTreeMap<String, Vec<AllocationCategoryValue>> = BTreeMap::new();
         for row in rows {
             let (category, value, ratio) =
                 row.map_err(|e| AppError::Storage(e.to_string()))?;
 
             map.entry(category)
                 .or_default()
-                .push(AssetCategoryValueRon {
+                .push(AllocationCategoryValue {
                     name: value,
                     ratio,
                 });
@@ -91,12 +91,12 @@ impl SqliteAssetRepository {
 
         let categories = map
             .into_iter()
-            .map(|(name, values)| AssetCategoryRon { name, values })
+            .map(|(name, values)| AllocationAssetCategory { name, values })
             .collect();
 
-        Ok(AssetRon {
+        Ok(AllocationAsset {
             name,
-            reference: AssetReferenceRon {
+            reference: AssetReference {
                 r#type: reference_type,
                 value: reference_value,
             },
@@ -195,7 +195,7 @@ fn get_latest_allocation_record_paths(
     Ok(paths)
 }
 
-fn load_allocation_record_ron(path: &Path) -> Result<AllocationRecordRon, AppError> {
+fn load_allocation_record_ron(path: &Path) -> Result<AllocationRecord, AppError> {
     let content = fs::read_to_string(path)
         .map_err(|e| AppError::Storage(e.to_string()))?;
 
@@ -204,10 +204,10 @@ fn load_allocation_record_ron(path: &Path) -> Result<AllocationRecordRon, AppErr
 }
 
 impl AssetRepository for SqliteAssetRepository {
-    fn load_latest_allocation_records(
+    fn get_latest_allocation_records(
         &self,
         limit: usize,
-    ) -> Result<Vec<AllocationRecordRon>, AppError> {
+    ) -> Result<Vec<AllocationRecord>, AppError> {
         get_latest_allocation_record_paths(Path::new(self.allocation_records_path.as_str()), limit)?
             .into_iter()
             .map(|path| load_allocation_record_ron(&path))
@@ -297,7 +297,7 @@ impl AssetRepository for SqliteAssetRepository {
             "INSERT INTO assets (name, reference_type, reference_value) VALUES (?1, ?2, ?3)",
             params![
                 asset.name,
-                asset.reference.reference_type.to_string(),
+                asset.reference.r#type.to_string(),
                 asset.reference.value
             ],
         )
@@ -347,7 +347,7 @@ impl AssetRepository for SqliteAssetRepository {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     reference: AssetReference {
-                        reference_type,
+                        r#type: reference_type,
                         value: row.get(3)?,
                     },
                 })
@@ -362,19 +362,19 @@ impl AssetRepository for SqliteAssetRepository {
         Ok(assets)
     }
 
-    fn add_allocation_record(&mut self, record: &NewAllocationRecord) -> Result<(), AppError> {
+    fn add_allocation_record(&mut self, record: &AllocationRecordInput) -> Result<(), AppError> {
         let mut positions = Vec::new();
 
         for position in &record.positions {
             let asset = self.load_asset_ron(position.asset_id)?;
 
-            positions.push(AllocationPositionRon {
+            positions.push(AllocationPosition {
                 asset,
                 amount: position.amount,
             });
         }
 
-        let ron_record = AllocationRecordRon {
+        let ron_record = AllocationRecord {
             date: record.date.to_string(),
             positions,
         };

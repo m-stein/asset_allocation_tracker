@@ -1,9 +1,11 @@
+use serde::{Deserialize, Serialize};
+
 use crate::app::asset_reference_type::AssetReferenceType;
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssetReference {
-    pub reference_type: AssetReferenceType,
+    pub r#type: AssetReferenceType,
     pub value: String,
 }
 
@@ -16,7 +18,7 @@ impl AssetReference {
         }
 
         Ok(Self {
-            reference_type,
+            r#type: reference_type,
             value: trimmed.to_string(),
         })
     }

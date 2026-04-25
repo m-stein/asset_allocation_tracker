@@ -6,10 +6,10 @@ use jiff::civil::Date;
 use jiff::Zoned;
 use strum::IntoEnumIterator;
 
-use crate::app::allocation_record_ron::AllocationRecordRon;
+use crate::app::allocation_record::AllocationRecord;
 use crate::app::asset_input::AssetInput;
 use crate::app::asset_service::AssetService;
-use crate::app::new_allocation_record::NewAllocationPosition;
+use crate::app::allocation_record_input::AllocationPositionInput;
 use crate::app::category::Category;
 use crate::app::category_assignment_input::CategoryAssignmentInput;
 use crate::app::named_distribution::DatedDistribution;
@@ -43,7 +43,7 @@ pub struct DesktopApp {
     allocation_record_date: Date,
     allocation_record_assets: Vec<PositionItem>,
 
-    latest_allocation_record: Option<AllocationRecordRon>,
+    latest_allocation_record: Option<AllocationRecord>,
     asset_name_by_id: HashMap<i64, String>,
 
     category_name_input: String,
@@ -276,7 +276,7 @@ impl DesktopApp {
                     break;
                 }
 
-                positions.push(NewAllocationPosition {
+                positions.push(AllocationPositionInput {
                     asset_id: asset.id,
                     amount,
                 });

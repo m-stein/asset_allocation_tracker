@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use jiff::civil::Date;
 
-use crate::app::new_allocation_record::{NewAllocationPosition, NewAllocationRecord};
-use crate::app::allocation_record_ron::AllocationRecordRon;
+use crate::app::allocation_record_input::{AllocationPositionInput, AllocationRecordInput};
+use crate::app::allocation_record::AllocationRecord;
 use crate::app::asset::Asset;
 use crate::app::asset_input::AssetInput;
 use crate::app::error::AppError;
@@ -46,7 +46,7 @@ impl AssetService {
 
     pub fn calc_distribution_for_category(
         &self,
-        records: Vec<AllocationRecordRon>,
+        records: Vec<AllocationRecord>,
         category_name: &str,
     ) -> Vec<DatedDistribution> {
         records
@@ -99,7 +99,7 @@ impl AssetService {
         days: i64,
     ) -> Result<Vec<DatedDistribution>, AppError> {
 
-        let records = self.repository.load_latest_allocation_records(days as usize)?;
+        let records = self.repository.get_latest_allocation_records(days as usize)?;
         let category_name = self.repository.get_category_name_by_id(category_id)?;
         Ok(self.calc_distribution_for_category(records, &category_name))
     }
@@ -144,9 +144,9 @@ impl AssetService {
     pub fn add_allocation_record(
         &mut self,
         date: Date,
-        positions: Vec<NewAllocationPosition>,
+        positions: Vec<AllocationPositionInput>,
     ) -> Result<(), AppError> {
-        let record = NewAllocationRecord::new(date, positions)
+        let record = AllocationRecordInput::new(date, positions)
             .map_err(AppError::Validation)?;
 
         self.repository.add_allocation_record(&record)
@@ -154,8 +154,8 @@ impl AssetService {
 
     pub fn get_latest_allocation_record(
         &self,
-    ) -> Result<Option<AllocationRecordRon>, AppError> {
-        let mut records = self.repository.load_latest_allocation_records(1)?;
+    ) -> Result<Option<AllocationRecord>, AppError> {
+        let mut records = self.repository.get_latest_allocation_records(1)?;
 
         Ok(records.pop())
     }

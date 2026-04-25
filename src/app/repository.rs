@@ -1,7 +1,7 @@
-use crate::app::allocation_record_ron::AllocationRecordRon;
+use crate::app::allocation_record::AllocationRecord;
 use crate::app::error::AppError;
 
-use crate::app::new_allocation_record::NewAllocationRecord;
+use crate::app::allocation_record_input::AllocationRecordInput;
 use crate::app::asset::Asset;
 use crate::app::category::Category;
 use crate::app::category_value::CategoryValue;
@@ -13,7 +13,7 @@ pub trait AssetRepository {
     fn list_assets(&self) -> Result<Vec<Asset>, AppError>;
     fn add_allocation_record(
         &mut self,
-        record: &NewAllocationRecord,
+        record: &AllocationRecordInput,
     ) -> Result<(), AppError>;
     fn list_asset_categories(&self) -> Result<Vec<Category>, AppError>;
     fn list_asset_category_values(&self, category: &Category) -> Result<Vec<CategoryValue>, AppError>;
@@ -21,9 +21,9 @@ pub trait AssetRepository {
         &mut self,
         value: &CategoryValue,
     ) -> Result<(), AppError>;
-    fn load_latest_allocation_records(
+    fn get_latest_allocation_records(
         &self,
         limit: usize,
-    ) -> Result<Vec<AllocationRecordRon>, AppError>;
+    ) -> Result<Vec<AllocationRecord>, AppError>;
     fn get_category_name_by_id(&self, category_id: i64) -> Result<String, AppError>;
 }
