@@ -155,9 +155,7 @@ impl AssetService {
     pub fn get_latest_allocation_record(
         &self,
     ) -> Result<Option<AllocationRecord>, AppError> {
-        let mut records = self.repository.get_latest_allocation_records(1)?;
-
-        Ok(records.pop())
+        Ok(self.repository.get_latest_allocation_records(1)?.pop())
     }
 
     pub fn list_asset_categories(&self) -> Result<Vec<Category>, AppError> {
