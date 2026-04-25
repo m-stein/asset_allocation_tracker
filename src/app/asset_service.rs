@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use jiff::civil::Date;
 
-use crate::app::allocation_record::{AllocationPosition, AllocationRecord};
+use crate::app::new_allocation_record::{NewAllocationPosition, NewAllocationRecord};
+use crate::app::allocation_record_ron::AllocationRecordRon;
 use crate::app::asset::Asset;
 use crate::app::asset_input::AssetInput;
 use crate::app::error::AppError;
@@ -12,7 +13,7 @@ use crate::app::category::Category;
 use crate::app::category_value::CategoryValue;
 use crate::app::category_assignment::CategoryAssignment;
 use crate::app::category_assignment_input::CategoryAssignmentInput;
-use crate::app::named_distribution::DatedDistribution;
+use crate::app::named_distribution::{DatedDistribution, NamedDistribution};
 
 pub struct AssetService {
     repository: Box<dyn AssetRepository>,
@@ -43,12 +44,64 @@ impl AssetService {
         self.repository.add_category(&category)
     }
 
+    pub fn calc_distribution_for_category(
+        &self,
+        records: Vec<AllocationRecordRon>,
+        category_name: &str,
+    ) -> Vec<DatedDistribution> {
+        records
+            .into_iter()
+            .map(|record| {
+                let mut amounts: HashMap<String, f64> = HashMap::new();
+
+                for position in record.positions {
+                    let Some(category) = position
+                        .asset
+                        .categories
+                        .iter()
+                        .find(|category| category.name == category_name)
+                    else {
+                        continue;
+                    };
+
+                    for value in &category.values {
+                        *amounts.entry(value.name.clone()).or_insert(0.0) +=
+                            position.amount as f64 * value.ratio;
+                    }
+                }
+
+                let mut values: Vec<NamedDistribution> = amounts
+                    .into_iter()
+                    .map(|(name, amount)| NamedDistribution {
+                        name,
+                        amount: amount,
+                    })
+                    .collect();
+
+                values.sort_by(|a, b| {
+                    b.amount
+                        .partial_cmp(&a.amount)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| a.name.cmp(&b.name))
+                });
+
+                DatedDistribution {
+                    date: record.date,
+                    values,
+                }
+            })
+            .collect()
+    }
+
     pub fn get_distribution_for_category(
         &self,
         category_id: i64,
         days: i64,
     ) -> Result<Vec<DatedDistribution>, AppError> {
-        self.repository.get_distribution_for_category(category_id, days)
+
+        let records = self.repository.load_latest_allocation_records(days as usize)?;
+        let category_name = self.repository.get_category_name_by_id(category_id)?;
+        Ok(self.calc_distribution_for_category(records, &category_name))
     }
 
     pub fn add_asset(
@@ -91,9 +144,9 @@ impl AssetService {
     pub fn add_allocation_record(
         &mut self,
         date: Date,
-        positions: Vec<AllocationPosition>,
+        positions: Vec<NewAllocationPosition>,
     ) -> Result<(), AppError> {
-        let record = AllocationRecord::new(date, positions)
+        let record = NewAllocationRecord::new(date, positions)
             .map_err(AppError::Validation)?;
 
         self.repository.add_allocation_record(&record)
@@ -101,8 +154,10 @@ impl AssetService {
 
     pub fn get_latest_allocation_record(
         &self,
-    ) -> Result<Option<AllocationRecord>, AppError> {
-        self.repository.get_latest_allocation_record()
+    ) -> Result<Option<AllocationRecordRon>, AppError> {
+        let mut records = self.repository.load_latest_allocation_records(1)?;
+
+        Ok(records.pop())
     }
 
     pub fn list_asset_categories(&self) -> Result<Vec<Category>, AppError> {

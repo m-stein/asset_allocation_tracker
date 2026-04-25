@@ -6,9 +6,10 @@ use jiff::civil::Date;
 use jiff::Zoned;
 use strum::IntoEnumIterator;
 
+use crate::app::allocation_record_ron::AllocationRecordRon;
 use crate::app::asset_input::AssetInput;
 use crate::app::asset_service::AssetService;
-use crate::app::allocation_record::{AllocationPosition, AllocationRecord};
+use crate::app::new_allocation_record::NewAllocationPosition;
 use crate::app::category::Category;
 use crate::app::category_assignment_input::CategoryAssignmentInput;
 use crate::app::named_distribution::DatedDistribution;
@@ -42,7 +43,7 @@ pub struct DesktopApp {
     allocation_record_date: Date,
     allocation_record_assets: Vec<PositionItem>,
 
-    latest_allocation_record: Option<AllocationRecord>,
+    latest_allocation_record: Option<AllocationRecordRon>,
     asset_name_by_id: HashMap<i64, String>,
 
     category_name_input: String,
@@ -275,7 +276,7 @@ impl DesktopApp {
                     break;
                 }
 
-                positions.push(AllocationPosition {
+                positions.push(NewAllocationPosition {
                     asset_id: asset.id,
                     amount,
                 });
@@ -367,17 +368,13 @@ impl DesktopApp {
             ui.add_space(10.0);
 
             for position in &record.positions {
-                let asset_name = self.asset_name_by_id
-                    .get(&position.asset_id)
-                    .map(|s| s.as_str())
-                    .unwrap_or("Unknown asset");
 
                 let percentage = (position.amount as f64 / total as f64) * 100.0;
                 let fraction = position.amount as f32 / total as f32;
 
                 ui.label(format!(
                     "{} - {} ({:.1}%)",
-                    asset_name, position.amount, percentage
+                    position.asset.name, position.amount, percentage
                 ));
 
                 ui.add(

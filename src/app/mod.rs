@@ -1,4 +1,5 @@
-pub mod allocation_record;
+pub mod new_allocation_record;
+pub mod allocation_record_ron;
 pub mod asset;
 pub mod asset_input;
 pub mod asset_reference_type;

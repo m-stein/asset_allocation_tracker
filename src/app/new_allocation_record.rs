@@ -1,29 +1,27 @@
 use jiff::civil::Date;
 
 #[derive(Debug, Clone)]
-pub struct AllocationRecord {
+pub struct NewAllocationRecord {
     pub date: Date,
-    pub positions: Vec<AllocationPosition>,
+    pub positions: Vec<NewAllocationPosition>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AllocationPosition {
+pub struct NewAllocationPosition {
     pub asset_id: i64,
     pub amount: i64,
 }
 
-impl AllocationRecord {
-    pub fn new(date: Date, positions: Vec<AllocationPosition>) -> Result<Self, String> {
+impl NewAllocationRecord {
+    pub fn new(date: Date, positions: Vec<NewAllocationPosition>) -> Result<Self, String> {
         if positions.is_empty() {
             return Err("At least one position must be added".into());
         }
-
         for position in &positions {
             if position.amount <= 0 {
                 return Err("Position amount must be positive".into());
             }
         }
-
         Ok(Self { date, positions })
     }
 }
