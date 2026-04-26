@@ -9,7 +9,7 @@ use eframe::egui;
 use infra::sqlite_asset_repository::SqliteAssetRepository;
 use ui::desktop_app::desktop_app::DesktopApp;
 
-const DB_PATH: &str = "./data/allocation_records.sdb";
+const DB_PATH: &str = "./data/assets.sdb";
 
 fn main() -> eframe::Result<()> {
     let repository = SqliteAssetRepository::new(DB_PATH)
