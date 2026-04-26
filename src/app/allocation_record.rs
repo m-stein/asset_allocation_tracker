@@ -11,7 +11,7 @@ pub struct AllocationRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationPosition {
     pub asset: AllocationAsset,
-    pub amount: i64,
+    pub amount: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

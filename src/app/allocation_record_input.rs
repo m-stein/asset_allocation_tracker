@@ -9,7 +9,7 @@ pub struct AllocationRecordInput {
 #[derive(Debug, Clone)]
 pub struct AllocationPositionInput {
     pub asset_id: i64,
-    pub amount: i64,
+    pub amount: f64,
 }
 
 impl AllocationRecordInput {
@@ -18,7 +18,7 @@ impl AllocationRecordInput {
             return Err("At least one position must be added".into());
         }
         for position in &positions {
-            if position.amount <= 0 {
+            if position.amount <= 0. {
                 return Err("Position amount must be positive".into());
             }
         }

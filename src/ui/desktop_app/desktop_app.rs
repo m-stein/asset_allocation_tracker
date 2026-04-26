@@ -257,7 +257,7 @@ impl DesktopApp {
                     continue;
                 }
 
-                let amount = match trimmed.parse::<i64>() {
+                let amount = match trimmed.parse::<f64>() {
                     Ok(value) => value,
                     Err(_) => {
                         validation_error = Some(format!(
@@ -268,7 +268,7 @@ impl DesktopApp {
                     }
                 };
 
-                if amount <= 0 {
+                if amount <= 0. {
                     validation_error = Some(format!(
                         "Amount must be greater than 0 for asset '{}'",
                         asset.label
@@ -354,9 +354,9 @@ impl DesktopApp {
         if let Some(distr_history) = self.alloc_diagram_data.as_ref() {
             draw_distribution_history(ui, self.allocation_diagram_category_selected_text(), distr_history);
         } else if let Some(record) = &self.latest_allocation_record {
-            let total: i64 = record.positions.iter().map(|p| p.amount).sum();
+            let total: f64 = record.positions.iter().map(|p| p.amount).sum();
 
-            if total <= 0 {
+            if total <= 0. {
                 ui.label("The latest allocation record contains no positive positions.");
                 return;
             }
