@@ -51,7 +51,6 @@ impl SqliteAssetRepository {
             )
             .map_err(|e| AppError::Storage(e.to_string()))?;
 
-        println!("Ref Type String: {}", reference_type_str);
         let reference_type: AssetReferenceType = reference_type_str.parse().unwrap();
         let mut stmt = self.connection
             .prepare(

@@ -3,8 +3,6 @@ Last added: T13
 Open
 ####
 
-T2: When navigating to "Allocation Diagram" the diagram is not updated
-
 T5: Allow for configuring one target allocation per category
 
 T6: Allow for adding assets that lack category values and show them as "Unknown" in diagrams
@@ -35,3 +33,5 @@ T9: When an allocation record has only one value for a category, the pie chart l
 T4: Let allocation diagram show the development over multiple consecutive records
 
 T13: Allow float position amounts in records
+
+T2: When navigating to "Allocation Diagram" the diagram is not updated

@@ -304,8 +304,26 @@ impl DesktopApp {
         }
     }
 
+    fn reload_alloc_diagram_data(&mut self) {
+        if let Some(category_id) = self.alloc_diagram_category_id {
+            match self.asset_service.get_distribution_for_category(category_id, 5) {
+                Ok(data) => {
+                    self.alloc_diagram_data = Some(data)
+                }
+                Err(err) => {
+                    self.alloc_diagram_data = None;
+                    self.message = Some(err.to_string());
+                }
+            }
+        } else {
+            self.alloc_diagram_data = None;
+        }
+    }
+
     fn init_alocation_diagram_page(&mut self) {
         self.reload_asset_categories();
+        self.reload_alloc_diagram_data();
+        self.reload_latest_allocation_record();
     }
 
     fn show_allocation_diagram_page(&mut self, ui: &mut egui::Ui) {
@@ -335,21 +353,8 @@ impl DesktopApp {
         ui.add_space(Self::SPACE_2);
 
         if prev_category_id != self.alloc_diagram_category_id {
-            if let Some(category_id) = self.alloc_diagram_category_id {
-                match self.asset_service.get_distribution_for_category(category_id, 5) {
-                    Ok(data) => {
-                        self.alloc_diagram_data = Some(data)
-                    }
-                    Err(err) => {
-                        self.alloc_diagram_data = None;
-                        self.message = Some(err.to_string());
-                    }
-                }
-            } else {
-                self.alloc_diagram_data = None;
-                self.reload_latest_allocation_record();
-            }
-            ui.add_space(Self::SPACE_2);
+            self.reload_alloc_diagram_data();
+            self.reload_latest_allocation_record();
         }
         if let Some(distr_history) = self.alloc_diagram_data.as_ref() {
             draw_distribution_history(ui, self.allocation_diagram_category_selected_text(), distr_history);
