@@ -24,24 +24,21 @@ impl AssetService {
         Self { repository }
     }
 
-    pub fn add_category(
-        &mut self,
-        name: String
-    ) -> Result<(), AppError> {
-        let name = name.trim();
-
-        if name.is_empty() {
-            return Err(AppError::Validation(
-                "Category name must not be empty".into(),
-            ));
+    pub fn add_categories(&mut self, names: Vec<String>) -> Result<(), (usize, AppError)> {
+        let mut added_cnt: usize = 0;
+        for name in names {
+            let name = name.trim();
+            if name.is_empty() {
+                return Err((added_cnt, AppError::Validation(
+                    "Category name must not be empty".into(),
+                )));
+            }
+            self.repository
+                .add_category(&Category { id: 0, name: name.to_string() })
+                .map_err(|err| (added_cnt, AppError::Storage(err.to_string())))?;
+            added_cnt += 1;
         }
-
-        let category = Category {
-            id: 0,
-            name: name.to_string(),
-        };
-
-        self.repository.add_category(&category)
+        Ok(())
     }
 
     pub fn calc_distribution_for_category(
