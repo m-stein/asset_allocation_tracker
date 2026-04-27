@@ -1,4 +1,4 @@
-Last added: T13
+Last added: T14
 
 Open
 ####
@@ -17,6 +17,8 @@ T10: All categories and values should be configurable in one page
 T11: The allocation diagram never shows more than 5 days into the past although more days are available
 
 T12: The allocation diagram should go from left to right from oldest to newest date
+
+T14: The entire app must be scrollable in case that the content exceeds the main window
 
 
 Closed

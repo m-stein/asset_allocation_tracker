@@ -213,10 +213,7 @@ impl AssetRepository for SqliteAssetRepository {
             .collect()
     }
 
-    fn list_asset_category_values(
-        &self,
-        category: &Category,
-    ) -> Result<Vec<CategoryValue>, AppError> {
+    fn list_asset_category_values(&self, category_id: i64) -> Result<Vec<CategoryValue>, AppError> {
         let mut stmt = self.connection
             .prepare(
                 "
@@ -229,7 +226,7 @@ impl AssetRepository for SqliteAssetRepository {
             .map_err(|e| AppError::Storage(e.to_string()))?;
 
         let values_iter = stmt
-            .query_map(params![category.id], |row| {
+            .query_map(params![category_id], |row| {
                 Ok(CategoryValue {
                     id: row.get(0)?,
                     asset_category_id: row.get(1)?,

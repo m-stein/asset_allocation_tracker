@@ -159,8 +159,8 @@ impl AssetService {
         self.repository.list_asset_categories()
     }
     
-    pub fn list_asset_category_values(&self, category: &Category) -> Result<Vec<CategoryValue>, AppError> {
-        self.repository.list_asset_category_values(category)
+    pub fn list_asset_category_values(&self, category_id: i64) -> Result<Vec<CategoryValue>, AppError> {
+        self.repository.list_asset_category_values(category_id)
     }
 
     pub fn add_asset_category_value(

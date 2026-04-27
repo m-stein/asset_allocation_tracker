@@ -16,7 +16,7 @@ pub trait AssetRepository {
         record: &AllocationRecordInput,
     ) -> Result<(), AppError>;
     fn list_asset_categories(&self) -> Result<Vec<Category>, AppError>;
-    fn list_asset_category_values(&self, category: &Category) -> Result<Vec<CategoryValue>, AppError>;
+    fn list_asset_category_values(&self, category_id: i64) -> Result<Vec<CategoryValue>, AppError>;
     fn add_asset_category_value(
         &mut self,
         value: &CategoryValue,

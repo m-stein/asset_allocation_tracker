@@ -10,7 +10,6 @@ use crate::app::allocation_record::AllocationRecord;
 use crate::app::asset_input::AssetInput;
 use crate::app::asset_service::AssetService;
 use crate::app::allocation_record_input::AllocationPositionInput;
-use crate::app::category::Category;
 use crate::app::category_assignment_input::CategoryAssignmentInput;
 use crate::app::named_distribution::DatedDistribution;
 use crate::app::asset_reference_type::AssetReferenceType;
@@ -48,6 +47,8 @@ pub struct DesktopApp {
 
     cfg_catgies_name_input_cnt: usize,
     cfg_catgies_name_inputs: Vec<String>,
+    cfg_catgies_id_to_value_input_cnt: HashMap<i64, usize>,
+    cfg_catgies_id_to_value_inputs: HashMap<i64, Vec<String>>,
 
     category_value_name_input: String,
     selected_category_id_for_value: Option<i64>,
@@ -70,6 +71,7 @@ impl DesktopApp {
     const H2_SIZE: f32 = 24.0;
     const SPACE_1: f32 = 8.0;
     const SPACE_2: f32 = 12.0;
+    const SPACE_3: f32 = 24.0;
     const DEFAULT_INPUT_HEIGHT: f32 = 19.0;
     const SYM_BTN_SIZE: f32 = DesktopApp::DEFAULT_INPUT_HEIGHT;
 
@@ -85,6 +87,8 @@ impl DesktopApp {
 
             cfg_catgies_name_input_cnt: 1,
             cfg_catgies_name_inputs: Vec::new(),
+            cfg_catgies_id_to_value_input_cnt: HashMap::new(),
+            cfg_catgies_id_to_value_inputs: HashMap::new(),
 
             category_value_name_input: String::new(),
             selected_category_id_for_value: None,
@@ -488,21 +492,68 @@ impl DesktopApp {
                 self.cfg_catgies_name_inputs.clear();
                 self.cfg_catgies_name_input_cnt = 1;
             }
+            /* FIXME: save also new category values */
             self.reload_asset_categories();
         }
         ui.add_space(Self::SPACE_2);
-        if ui
-            .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("+"))
-            .clicked()
-        {
-            self.cfg_catgies_name_input_cnt += 1;
-        }
+        ui.horizontal(|ui| {
+            if ui
+                .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("+"))
+                .clicked()
+            {
+                self.cfg_catgies_name_input_cnt += 1;
+            }
+            ui.label("Categories:");
+        });
         self.cfg_catgies_name_inputs.resize_with(self.cfg_catgies_name_input_cnt, || String::new());
         for name_input_idx in (0..self.cfg_catgies_name_input_cnt).rev() {
-            ui.text_edit_singleline(&mut self.cfg_catgies_name_inputs[name_input_idx]);
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.text_edit_singleline(&mut self.cfg_catgies_name_inputs[name_input_idx]);
+
+                /* FIXME: allow for adding category values also to new categories */
+            });
         }
         for catgy in &self.asset_categories {
-            ui.label(&catgy.name);
+            ui.label(format!("• {}", catgy.name));
+            ui.horizontal(|ui| {
+                ui.add_space(Self::SPACE_3);
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_sized([Self::SYM_BTN_SIZE, Self::SYM_BTN_SIZE], egui::Button::new("+"))
+                            .clicked()
+                        {
+                            self.cfg_catgies_id_to_value_input_cnt
+                                .entry(catgy.id)
+                                .and_modify(|cnt| *cnt += 1)
+                                .or_insert(2);
+                        }
+                        ui.label("Values:");
+                    });
+                    let val_input_cnt =
+                        *self.cfg_catgies_id_to_value_input_cnt
+                            .entry(catgy.id)
+                            .or_insert(1);
+                    let val_inputs =
+                        self.cfg_catgies_id_to_value_inputs
+                            .entry(catgy.id)
+                            .or_insert(Vec::new());
+                    val_inputs.resize_with(val_input_cnt, || String::new());
+                    for val_input in val_inputs {
+                        ui.horizontal(|ui| {
+                            ui.label("•");
+                            ui.text_edit_singleline(val_input);
+                        });
+                    }
+                    let values = self.asset_service
+                        .list_asset_category_values(catgy.id)
+                        .unwrap_or_default();
+                    for value in values {
+                        ui.label(format!("• {}", value.name));
+                    }
+                });
+            });
         }
     }
 
@@ -537,22 +588,21 @@ impl DesktopApp {
         ui.label("Reference value:");
         ui.text_edit_singleline(&mut self.add_asset_asset_input.reference_value);
         ui.vertical(|ui| {
-            for catgy_item in &mut self.asset_categories {
+            for catgy in &mut self.asset_categories {
 
-                let catgy = Category { id: catgy_item.id, name: catgy_item.name.clone() };
-                let selectable_vals = self
-                    .asset_service
-                    .list_asset_category_values(&catgy)
-                    .unwrap_or_default();
+                let selectable_vals =
+                    self.asset_service
+                        .list_asset_category_values(catgy.id)
+                        .unwrap_or_default();
 
-                let assignm_inputs = self
-                    .add_asset_catgy_id_to_assignm_inputs
-                    .entry(catgy_item.id)
-                    .or_insert(Vec::new());
+                let assignm_inputs =
+                    self.add_asset_catgy_id_to_assignm_inputs
+                        .entry(catgy.id)
+                        .or_insert(Vec::new());
 
                 let assignm_input_cnt =
                     *self.add_asset_catgy_id_to_assignm_input_cnt
-                        .entry(catgy_item.id)
+                        .entry(catgy.id)
                         .or_insert(1) as usize;
 
                 ui.add_space(Self::SPACE_2);
@@ -563,12 +613,12 @@ impl DesktopApp {
                             .clicked()
                         {
                             self.add_asset_catgy_id_to_assignm_input_cnt
-                                .entry(catgy_item.id)
+                                .entry(catgy.id)
                                 .and_modify(|cnt| *cnt = assignm_input_cnt as i64 + 1)
                                 .or_insert(2);
                         }
                     }
-                    ui.label(format!(" {}:", &catgy_item.name));
+                    ui.label(format!(" {}:", &catgy.name));
                 });
                 ui.add_space(Self::SPACE_1);
 
@@ -599,7 +649,7 @@ impl DesktopApp {
                                     .suffix("%"),
                             );
                         });
-                        egui::ComboBox::from_id_salt(format!("{}:{}", catgy_item.id, input_idx))
+                        egui::ComboBox::from_id_salt(format!("{}:{}", catgy.id, input_idx))
                             .selected_text(selected_text)
                             .show_ui(ui, |ui| {
                                 for value in &selectable_vals {
@@ -617,7 +667,7 @@ impl DesktopApp {
                                     .clicked()
                                 {
                                     self.add_asset_catgy_id_to_assignm_input_cnt
-                                        .entry(catgy_item.id)
+                                        .entry(catgy.id)
                                         .and_modify(|cnt| *cnt = assignm_input_cnt as i64 - 1);
                                 }
                             }
