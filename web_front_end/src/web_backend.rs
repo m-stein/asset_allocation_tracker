@@ -42,7 +42,8 @@ impl WebBackend {
         if (hostname == "127.0.0.1" || hostname == "localhost") && port != "3000" {
             format!("{}/{}", Self::LOCAL_BACKEND_URL, request)
         } else {
-            format!("/{}", request)
+            let origin = location.origin().unwrap_or_default();
+            format!("{origin}/{request}")
         }
     }
 
