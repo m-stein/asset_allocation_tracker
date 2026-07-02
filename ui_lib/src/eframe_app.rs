@@ -82,8 +82,39 @@ macro_rules! implement_requests {
     };
 }
 
+fn trunc_str(value: &str, max_chars: usize) -> String {
+    if value.chars().count() <= max_chars {
+        return value.to_string();
+    }
+
+    let truncated: String = value.chars().take(max_chars).collect();
+    format!("{truncated}...")
+}
+
+
+fn value_or_unknown(value: Option<&str>) -> &str {
+    value
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("?")
+}
+
+fn format_updated_at(date: Option<&str>, time: Option<&str>) -> String {
+    let date = date.filter(|date| !date.trim().is_empty());
+    let time = time
+        .filter(|time| !time.trim().is_empty())
+        .map(|time| time.chars().take(5).collect::<String>());
+
+    match (date, time) {
+        (Some(date), Some(time)) => format!("{date} {time}"),
+        (Some(date), None) => date.to_string(),
+        (None, Some(time)) => time,
+        (None, None) => "?".to_string(),
+    }
+}
+
 #[derive(PartialEq)]
 enum Page {
+    MainMenu,
     AllocationDiagram,
     AddAsset,
     ConfigureCategories,
@@ -142,7 +173,11 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     const DECIMAL_DISPLAY_MAX_FRACTION_DIGITS: usize = 10;
     const SYM_BTN_SIZE: f32 = Self::DEFAULT_INPUT_HEIGHT;
     const BACK_BTN_SIZE: f32 = Self::SYM_BTN_SIZE * 1.2;
+    const TABLE_GRID_SPACING: [f32; 2] = [16.0, 16.0];
+    const TRANSACTION_ASSETS_GRID_SPACING: [f32; 2] = [20.0, 20.0];
+    const TRANSACTION_ASSET_ROW_LINE_SPACING: f32 = 4.0;
     const TRANSACTION_ACTION_BTN_SIZE: [f32; 2] = [80.0, 32.0];
+    const ASSET_NAME_DISPLAY_LEN: usize = 24;
     const MAX_TRANSACTION_ASSET_SUGGESTIONS: usize = 6;
     const SQUIRREL_IMG_PATH: &str = "img/squirrel_68x68.png";
 
@@ -151,7 +186,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
             backend,
             squirrel_texture: None,
             request_data: RequestData::default(),
-            page: Page::AllocationDiagram,
+            page: Page::MainMenu,
             allocation_record_date: Zoned::now().date(),
             allocation_record_assets: Vec::new(),
             message: None,
@@ -206,11 +241,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_allocation_diagram_page(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            egui::RichText::new("Allocation Diagram")
-                .heading()
-                .size(Self::H2_SIZE),
-        );
+        self.show_main_menu_back_header(ui, "Allocation Diagram");
         ui.add_space(Self::SPACE_2);
 
         let prev_category_id = self.alloc_diagram_category_id;
@@ -287,7 +318,10 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                 ))
             || (page == Page::TransactionAssets
                 && matches!(self.page, Page::ImportTransactionAssets));
-        let response = ui.add_sized([180.0, 20.0], egui::Button::selectable(selected, label));
+        let response = ui.add_sized(
+            [180.0, 20.0],
+            egui::Button::selectable(selected, label).right_text(""),
+        );
         if response.clicked() {
             match init_page_fn(self) {
                 Ok(_) => {
@@ -298,6 +332,22 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                 }
             }
         }
+    }
+
+    fn show_main_menu_back_header(&mut self, ui: &mut egui::Ui, title: &str) {
+        ui.horizontal(|ui| {
+            if ui
+                .add_sized(
+                    [Self::BACK_BTN_SIZE, Self::BACK_BTN_SIZE],
+                    egui::Button::new(egui::RichText::new("‹").size(Self::H3_SIZE)),
+                )
+                .clicked()
+            {
+                self.page = Page::MainMenu;
+            }
+            ui.add_space(Self::SPACE_2);
+            ui.label(egui::RichText::new(title).heading().size(Self::H2_SIZE));
+        });
     }
 
     fn go_to_transactions_page(&mut self) {
@@ -475,11 +525,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_add_asset_page(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            egui::RichText::new("Add Asset")
-                .heading()
-                .size(Self::H2_SIZE),
-        );
+        self.show_main_menu_back_header(ui, "Add Asset");
         ui.add_space(Self::SPACE_2);
 
         ui.label("Name:");
@@ -729,11 +775,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_transactions_page(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            egui::RichText::new("Transactions")
-                .heading()
-                .size(Self::H2_SIZE),
-        );
+        self.show_main_menu_back_header(ui, "Transactions");
         ui.add_space(Self::SPACE_3);
 
         ui.horizontal(|ui| {
@@ -774,7 +816,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
 
         egui::Grid::new("list_transactions_grid")
             .striped(true)
-            .spacing([Self::SPACE_2, Self::SPACE_2])
+            .spacing(Self::TABLE_GRID_SPACING)
             .show(ui, |ui| {
                 ui.strong("Date");
                 ui.strong("Type");
@@ -801,11 +843,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_transaction_assets_page(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            egui::RichText::new("Transaction Assets")
-                .heading()
-                .size(Self::H2_SIZE),
-        );
+        self.show_main_menu_back_header(ui, "Transaction Assets");
         ui.add_space(Self::SPACE_3);
 
         if ui
@@ -828,27 +866,41 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
 
         egui::Grid::new("transaction_assets_grid")
             .striped(true)
-            .spacing([Self::SPACE_2, Self::SPACE_2])
+            .spacing(Self::TRANSACTION_ASSETS_GRID_SPACING)
             .show(ui, |ui| {
-                ui.strong("ISIN");
-                ui.strong("Name");
-                ui.strong("Symbol");
-                ui.strong("Exchange");
-                ui.strong("Type");
-                ui.strong("Updated");
+                ui.strong("Name / Updated");
+                ui.strong("ISIN / Symbol");
+                ui.strong("Type / Exchange");
                 ui.end_row();
 
                 for asset in &self.transaction_assets {
-                    ui.label(&asset.isin);
-                    ui.label(asset.name.as_deref().unwrap_or(""));
-                    ui.label(asset.symbol.as_deref().unwrap_or(""));
-                    ui.label(asset.exchange.as_deref().unwrap_or(""));
-                    ui.label(asset.quote_type.as_deref().unwrap_or(""));
-                    ui.label(match (&asset.updated_at_date, &asset.updated_at_time) {
-                        (Some(date), Some(time)) => format!("{date} {time}"),
-                        (Some(date), None) => date.clone(),
-                        (None, Some(time)) => time.clone(),
-                        (None, None) => String::new(),
+                    let asset_name = value_or_unknown(asset.name.as_deref());
+                    ui.vertical(|ui| {
+                        let response = ui.label(
+                            egui::RichText::new(trunc_str(
+                                asset_name,
+                                Self::ASSET_NAME_DISPLAY_LEN,
+                            ))
+                            .strong(),
+                        );
+                        if asset_name != "?" {
+                            response.on_hover_text(asset_name);
+                        }
+                        ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                        ui.label(format_updated_at(
+                            asset.updated_at_date.as_deref(),
+                            asset.updated_at_time.as_deref(),
+                        ));
+                    });
+                    ui.vertical(|ui| {
+                        ui.label(value_or_unknown(Some(asset.isin.as_str())));
+                        ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                        ui.label(value_or_unknown(asset.symbol.as_deref()));
+                    });
+                    ui.vertical(|ui| {
+                        ui.label(value_or_unknown(asset.quote_type.as_deref()));
+                        ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                        ui.label(value_or_unknown(asset.exchange.as_deref()));
                     });
                     ui.end_row();
                 }
@@ -868,7 +920,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
             }
             ui.add_space(Self::SPACE_2);
             ui.label(
-                egui::RichText::new("Import Transaction Assets")
+                egui::RichText::new("Import Assets")
                     .heading()
                     .size(Self::H2_SIZE),
             );
@@ -947,7 +999,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
 
             egui::Grid::new("portfolio_items_grid")
                 .striped(true)
-                .spacing([Self::SPACE_2, Self::SPACE_2])
+                .spacing(Self::TABLE_GRID_SPACING)
                 .show(ui, |ui| {
                     ui.strong("Buy Date");
                     ui.strong("Quantity");
@@ -1036,14 +1088,14 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
         let mut selected_position: Option<(String, Option<String>)> = None;
         egui::Grid::new("portfolio_positions_grid")
             .striped(true)
-            .spacing([Self::SPACE_2, Self::SPACE_2])
+            .spacing(Self::TABLE_GRID_SPACING)
             .show(ui, |ui| {
-                ui.strong("Asset");
+                ui.strong("Name");
                 ui.strong("ISIN");
-                ui.strong("Quantity");
-                ui.strong("Average Share Price");
-                ui.strong("Total Value");
-                ui.strong("Currency");
+                ui.strong("Qty");
+                ui.strong("Price");
+                ui.strong("Value");
+                ui.strong("Ccy");
                 ui.end_row();
 
                 for position in &self.portfolio_overview_items {
@@ -1079,11 +1131,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_configure_categories_page(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            egui::RichText::new("Configure Categories")
-                .heading()
-                .size(Self::H2_SIZE),
-        );
+        self.show_main_menu_back_header(ui, "Configure Categories");
         ui.add_space(Self::SPACE_2);
         if ui.button("Save").clicked() {
             self.start_configure_categories(self.cfg_catgs_input.clone());
@@ -1259,11 +1307,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_add_allocation_record_page(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            egui::RichText::new("Add Allocation Record")
-                .heading()
-                .size(Self::H2_SIZE),
-        );
+        self.show_main_menu_back_header(ui, "Add Allocation Record");
         ui.add_space(Self::SPACE_2);
 
         ui.label("Date:");
@@ -1415,80 +1459,90 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
         }
     }
 
+    fn show_main_menu_page(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+            self.show_page_button(
+                ui,
+                Page::AllocationDiagram,
+                "Allocation Diagram",
+                Self::init_alocation_diagram_page,
+            );
+            self.show_page_button(ui, Page::AddAsset, "Add Asset", Self::init_add_asset_page);
+            self.show_page_button(
+                ui,
+                Page::ConfigureCategories,
+                "Configure Categories",
+                Self::init_configure_categories_page,
+            );
+            self.show_page_button(
+                ui,
+                Page::AddAllocationRecord,
+                "Add Allocation Record",
+                Self::init_add_allocation_record_page,
+            );
+            self.show_page_button(
+                ui,
+                Page::Transactions,
+                "Transactions",
+                Self::init_transactions_page,
+            );
+            self.show_page_button(
+                ui,
+                Page::TransactionAssets,
+                "Transaction Assets",
+                Self::init_transaction_assets_page,
+            );
+        });
+    }
+
     fn show_content(&mut self, ui: &mut egui::Ui) {
         ui.add_space(Self::SPACE_2);
         ui.horizontal(|ui| {
             if let Some(texture) = &self.squirrel_texture {
-                ui.image((texture.id(), egui::vec2(68.0, 68.0)));
+                if ui
+                    .add(
+                        egui::Image::new((texture.id(), egui::vec2(68.0, 68.0)))
+                            .sense(egui::Sense::click()),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked()
+                {
+                    self.page = Page::MainMenu;
+                }
             }
             ui.add_space(Self::SPACE_2);
             ui.label(
-                egui::RichText::new(format!("{APP_NAME} Asset Manager"))
+                egui::RichText::new(format!("{APP_NAME}"))
                     .heading()
                     .size(Self::H1_SIZE),
             );
         });
         ui.add_space(Self::SPACE_3);
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                self.show_page_button(
-                    ui,
-                    Page::AllocationDiagram,
-                    "Allocation Diagram",
-                    Self::init_alocation_diagram_page,
-                );
-                self.show_page_button(ui, Page::AddAsset, "Add Asset", Self::init_add_asset_page);
-                self.show_page_button(
-                    ui,
-                    Page::ConfigureCategories,
-                    "Configure Categories",
-                    Self::init_configure_categories_page,
-                );
-                self.show_page_button(
-                    ui,
-                    Page::AddAllocationRecord,
-                    "Add Allocation Record",
-                    Self::init_add_allocation_record_page,
-                );
-                self.show_page_button(
-                    ui,
-                    Page::Transactions,
-                    "Transactions",
-                    Self::init_transactions_page,
-                );
-                self.show_page_button(
-                    ui,
-                    Page::TransactionAssets,
-                    "Transaction Assets",
-                    Self::init_transaction_assets_page,
-                );
-            });
-            ui.add_space(20.0);
-            ui.vertical(|ui| {
-                if self.pending_req_cnt > 0 {
-                    ui.label("Loading...");
-                } else {
-                    match self.page {
-                        Page::AddAsset => self.show_add_asset_page(ui),
-                        Page::AllocationDiagram => self.show_allocation_diagram_page(ui),
-                        Page::ConfigureCategories => self.show_configure_categories_page(ui),
-                        Page::AddAllocationRecord => self.show_add_allocation_record_page(ui),
-                        Page::LogBuyTransaction => self.show_log_buy_transaction_page(ui),
-                        Page::Transactions => self.show_transactions_page(ui),
-                        Page::LogSellTransaction => self.show_log_sell_transaction_page(ui),
-                        Page::TransactionAssets => self.show_transaction_assets_page(ui),
-                        Page::ImportTransactionAssets => {
-                            self.show_import_transaction_assets_page(ui)
-                        }
-                    }
+        ui.vertical(|ui| {
+            if self.page == Page::MainMenu {
+                self.show_main_menu_page(ui);
+            } else if self.pending_req_cnt > 0 {
+                ui.label("Loading...");
+            } else {
+                match self.page {
+                    Page::MainMenu => self.show_main_menu_page(ui),
+                    Page::AddAsset => self.show_add_asset_page(ui),
+                    Page::AllocationDiagram => self.show_allocation_diagram_page(ui),
+                    Page::ConfigureCategories => self.show_configure_categories_page(ui),
+                    Page::AddAllocationRecord => self.show_add_allocation_record_page(ui),
+                    Page::LogBuyTransaction => self.show_log_buy_transaction_page(ui),
+                    Page::Transactions => self.show_transactions_page(ui),
+                    Page::LogSellTransaction => self.show_log_sell_transaction_page(ui),
+                    Page::TransactionAssets => self.show_transaction_assets_page(ui),
+                    Page::ImportTransactionAssets => self.show_import_transaction_assets_page(ui),
                 }
-                ui.add_space(Self::SPACE_3);
-                ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
-                ui.add_space(Self::SPACE_2);
-                if let Some(message) = &self.message {
-                    ui.colored_label(egui::Color32::RED, message);
-                }
-            });
+            }
+            ui.add_space(Self::SPACE_3);
+            ui.label(egui::RichText::new("Message").heading().size(Self::H2_SIZE));
+            ui.add_space(Self::SPACE_2);
+            if let Some(message) = &self.message {
+                ui.colored_label(egui::Color32::RED, message);
+            }
         });
     }
 }
