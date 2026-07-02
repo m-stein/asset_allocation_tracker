@@ -91,7 +91,6 @@ fn trunc_str(value: &str, max_chars: usize) -> String {
     format!("{truncated}...")
 }
 
-
 fn value_or_unknown(value: Option<&str>) -> &str {
     value
         .filter(|value| !value.trim().is_empty())
@@ -1498,21 +1497,20 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     fn show_content(&mut self, ui: &mut egui::Ui) {
         ui.add_space(Self::SPACE_2);
         ui.horizontal(|ui| {
-            if let Some(texture) = &self.squirrel_texture {
-                if ui
+            if let Some(texture) = &self.squirrel_texture
+                && ui
                     .add(
                         egui::Image::new((texture.id(), egui::vec2(68.0, 68.0)))
                             .sense(egui::Sense::click()),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .clicked()
-                {
-                    self.page = Page::MainMenu;
-                }
+            {
+                self.page = Page::MainMenu;
             }
             ui.add_space(Self::SPACE_2);
             ui.label(
-                egui::RichText::new(format!("{APP_NAME}"))
+                egui::RichText::new(APP_NAME.to_string())
                     .heading()
                     .size(Self::H1_SIZE),
             );
