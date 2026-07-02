@@ -15,6 +15,7 @@ use jiff::{Zoned, civil::Date};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::mpsc::Receiver;
+use std::time::Duration;
 use strum::IntoEnumIterator;
 
 macro_rules! define_request_data {
@@ -178,6 +179,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     const TRANSACTION_ACTION_BTN_SIZE: [f32; 2] = [80.0, 32.0];
     const ASSET_NAME_DISPLAY_LEN: usize = 24;
     const MAX_TRANSACTION_ASSET_SUGGESTIONS: usize = 6;
+    const REQUEST_POLL_INTERVAL: Duration = Duration::from_millis(100);
     const SQUIRREL_IMG_PATH: &str = "img/squirrel_68x68.png";
 
     pub fn new(backend: BACKEND) -> eyre::Result<Self> {
@@ -1558,5 +1560,9 @@ impl<B: AppBackend> eframe::App for EframeApp<B> {
                     });
                 });
         });
+        if self.pending_req_cnt > 0 {
+            // Keep polling background request receivers even when there is no input-driven repaint
+            ui.ctx().request_repaint_after(Self::REQUEST_POLL_INTERVAL);
+        }
     }
 }
