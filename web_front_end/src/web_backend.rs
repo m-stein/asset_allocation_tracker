@@ -52,14 +52,19 @@ impl WebBackend {
         Args: Serialize,
         Ret: DeserializeOwned,
     {
-        Ok(reqwest::Client::new()
-            .post(Self::request_url(request))
-            .json(&args)
-            .send()
-            .await?
-            .error_for_status()?
-            .json::<Ret>()
-            .await?)
+        let url = Self::request_url(request);
+        let response = reqwest::Client::new().post(&url).json(&args).send().await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Failed to read error response body".to_string());
+            return Err(eyre::eyre!("{status} for {url}: {message}"));
+        }
+
+        Ok(response.json::<Ret>().await?)
     }
 
     fn start_request<Args, Ret>(request: &'static str, args: Args) -> Receiver<eyre::Result<Ret>>
