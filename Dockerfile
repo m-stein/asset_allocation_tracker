@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 ARG RUST_VERSION=1.94.1
 
 FROM rust:${RUST_VERSION}-bookworm AS builder
@@ -9,7 +11,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN rustup target add wasm32-unknown-unknown
-RUN cargo install trunk --version 0.21.14 --locked
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo install trunk --version 0.21.14 --locked
 
 COPY Cargo.toml Cargo.lock ./
 COPY core_lib ./core_lib
@@ -20,8 +24,16 @@ COPY web_back_end ./web_back_end
 COPY web_front_end ./web_front_end
 COPY img ./img
 
-RUN cd web_front_end && trunk build --release
-RUN cargo build --release -p web_back_end
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cd web_front_end && trunk build --release
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release -p web_back_end \
+    && mkdir -p /build-output \
+    && cp /app/target/release/web_back_end /build-output/tallytail-web
 
 FROM debian:bookworm-slim AS runtime
 
@@ -35,7 +47,7 @@ RUN apt-get update \
 ENV PORT=8080
 ENV TALLYTAIL_DATA_DIR=/app/data
 
-COPY --from=builder /app/target/release/web_back_end /usr/local/bin/tallytail-web
+COPY --from=builder /build-output/tallytail-web /usr/local/bin/tallytail-web
 COPY --from=builder /app/web_front_end/dist /app/web_front_end/dist
 COPY --from=builder /app/img /img
 
