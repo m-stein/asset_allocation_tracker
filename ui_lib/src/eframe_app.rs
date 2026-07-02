@@ -130,7 +130,6 @@ pub struct EframeApp<B: AppBackend> {
 }
 
 impl<BACKEND: AppBackend> EframeApp<BACKEND> {
-    const MAX_CONTENT_WIDTH: f32 = 700.;
     const H1_SIZE: f32 = 32.0;
     const H2_SIZE: f32 = 24.0;
     const H3_SIZE: f32 = 18.0;
@@ -879,7 +878,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
         ui.label("ISINs:");
         ui.horizontal(|ui| {
             ui.add_sized(
-                [Self::MAX_CONTENT_WIDTH / 2.0, 120.0],
+                [Self::DEFAULT_INPUT_WIDTH, 120.0],
                 TextEdit::multiline(&mut self.transaction_asset_isins_input),
             );
             Self::show_help_if_any(
@@ -1502,8 +1501,7 @@ impl<B: AppBackend> eframe::App for EframeApp<B> {
             egui::ScrollArea::both()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.set_max_width(Self::MAX_CONTENT_WIDTH);
+                    ui.vertical(|ui| {
                         self.show_content(ui);
                     });
                 });
