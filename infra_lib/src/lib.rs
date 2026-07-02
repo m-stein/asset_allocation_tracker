@@ -252,9 +252,7 @@ struct SellTransaction {
 }
 
 fn validate_log_buy_transaction_input(input: LogBuyTransactionInput) -> eyre::Result<Transaction> {
-    if input.date > jiff::Zoned::now().date() {
-        return Err(eyre!("Transaction date must not be in the future"));
-    }
+    validate_transaction_date(input.date, input.client_today)?;
     let isin = normalize_isin(&input.isin)?;
     let quantity = parse_transaction_decimal("Quantity", &input.quantity)?;
     let share_price = parse_transaction_decimal("Share price", &input.share_price)?;
@@ -289,9 +287,7 @@ fn validate_log_buy_transaction_input(input: LogBuyTransactionInput) -> eyre::Re
 fn validate_log_sell_transaction_input(
     input: LogSellTransactionInput,
 ) -> eyre::Result<SellTransaction> {
-    if input.date > jiff::Zoned::now().date() {
-        return Err(eyre!("Transaction date must not be in the future"));
-    }
+    validate_transaction_date(input.date, input.client_today)?;
     let isin = normalize_isin(&input.isin)?;
     let share_price = parse_transaction_decimal("Share price", &input.share_price)?;
     let order_value = parse_transaction_decimal("Order value", &input.order_value)?;
@@ -415,6 +411,16 @@ fn parse_transaction_decimal(field_name: &str, input: &str) -> eyre::Result<Deci
         .trim()
         .parse::<Decimal>()
         .map_err(|_| eyre!("{field_name} must be a valid decimal number"))
+}
+
+fn validate_transaction_date(
+    date: jiff::civil::Date,
+    client_today: jiff::civil::Date,
+) -> eyre::Result<()> {
+    if date > client_today {
+        return Err(eyre!("Transaction date must not be in the future"));
+    }
+    Ok(())
 }
 
 fn normalize_isin(input: &str) -> eyre::Result<String> {
@@ -1206,6 +1212,7 @@ mod tests {
         LogBuyTransactionInput {
             currency: Currency::Eur,
             date: Zoned::now().date(),
+            client_today: Zoned::now().date(),
             isin: "US0378331005".to_string(),
             quantity: "2.5".to_string(),
             share_price: "100.00".to_string(),
@@ -1217,6 +1224,7 @@ mod tests {
         LogSellTransactionInput {
             currency: Currency::Eur,
             date: Zoned::now().date(),
+            client_today: Zoned::now().date(),
             isin: "US0378331005".to_string(),
             portfolio_item_id_to_quantity: HashMap::from([(1, "1.5".to_string())]),
             share_price: "100.00".to_string(),
@@ -1313,9 +1321,17 @@ mod tests {
     }
 
     #[test]
+    fn accepts_transaction_date_on_client_today() {
+        let mut input = valid_log_buy_transaction_input();
+        input.client_today = input.date;
+
+        validate_log_buy_transaction_input(input).unwrap();
+    }
+
+    #[test]
     fn rejects_future_transaction_date() {
         let mut input = valid_log_buy_transaction_input();
-        input.date = Zoned::now().tomorrow().unwrap().date();
+        input.date = input.client_today.tomorrow().unwrap();
 
         let err = validate_log_buy_transaction_input(input)
             .unwrap_err()
@@ -1420,7 +1436,7 @@ mod tests {
     #[test]
     fn rejects_sell_transaction_future_date() {
         let mut input = valid_log_sell_transaction_input();
-        input.date = Zoned::now().tomorrow().unwrap().date();
+        input.date = input.client_today.tomorrow().unwrap();
 
         let err = validate_log_sell_transaction_input(input)
             .unwrap_err()

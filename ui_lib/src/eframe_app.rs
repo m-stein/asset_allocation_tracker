@@ -640,7 +640,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
         ui.add_space(Self::SPACE_2);
 
         if ui.button("Save").clicked() {
-            self.start_log_buy_transaction(self.log_buy_transaction_input.clone());
+            let mut input = self.log_buy_transaction_input.clone();
+            input.client_today = Zoned::now().date();
+            self.start_log_buy_transaction(input);
         }
     }
 
@@ -1009,6 +1011,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
             ui.add_space(Self::SPACE_3);
             if ui.button("Save").clicked() {
                 self.log_sell_transaction_input.isin = isin.clone();
+                self.log_sell_transaction_input.client_today = Zoned::now().date();
                 self.log_sell_transaction_input
                     .portfolio_item_id_to_quantity
                     .retain(|_, quantity| !quantity.trim().is_empty());

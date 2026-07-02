@@ -19,13 +19,16 @@ pub struct LogBuyTransactionInput {
     pub share_price: String,
     pub order_value: String,
     pub date: Date,
+    pub client_today: Date,
 }
 
 impl Default for LogBuyTransactionInput {
     fn default() -> Self {
+        let today = Zoned::now().date();
         Self {
             currency: Currency::Eur,
-            date: Zoned::now().date(),
+            date: today,
+            client_today: today,
             isin: String::new(),
             quantity: String::new(),
             share_price: String::new(),
@@ -42,17 +45,20 @@ pub struct LogSellTransactionInput {
     pub share_price: String,
     pub order_value: String,
     pub date: Date,
+    pub client_today: Date,
 }
 
 impl Default for LogSellTransactionInput {
     fn default() -> Self {
+        let today = Zoned::now().date();
         Self {
             currency: Currency::Eur,
             isin: String::new(),
             portfolio_item_id_to_quantity: HashMap::new(),
             share_price: String::new(),
             order_value: String::new(),
-            date: Zoned::now().date(),
+            date: today,
+            client_today: today,
         }
     }
 }
