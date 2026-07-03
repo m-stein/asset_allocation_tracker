@@ -6,7 +6,7 @@ use core_lib::{
     AssetReferenceType, Category, CategoryAssignmentPc, CategoryValueInput,
     ConfigureCatgoriesInput, GetAllocDiagramDataArgs, ListedTransaction, LogBuyTransactionInput,
     LogSellTransactionInput, NewCategoryInput, PortfolioIsinItem, PortfolioOverviewItem,
-    TransactionAsset, call_macro_with_request_list,
+    TransactionAsset, TransactionType, call_macro_with_request_list,
 };
 use eframe::egui;
 use egui::{TextEdit, TextWrapMode, Widget};
@@ -828,18 +828,14 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                 ui.end_row();
 
                 for transaction in &self.listed_transactions {
-                    let (quantity, color) = match transaction.r#type.as_str() {
-                        "BUY" => (
+                    let (quantity, color) = match transaction.r#type {
+                        TransactionType::Buy => (
                             format!("+{}", transaction.quantity),
                             egui::Color32::from_rgb(0, 190, 95),
                         ),
-                        "SELL" => (
+                        TransactionType::Sell => (
                             format!("-{}", transaction.quantity),
                             egui::Color32::from_rgb(235, 80, 95),
-                        ),
-                        _ => (
-                            transaction.quantity.clone(),
-                            ui.visuals().widgets.noninteractive.fg_stroke.color,
                         ),
                     };
                     ui.vertical(|ui| {

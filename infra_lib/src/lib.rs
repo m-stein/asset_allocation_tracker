@@ -618,13 +618,6 @@ fn get_or_create_optional_id(
         .transpose()
 }
 
-fn transaction_type_code(transaction_type: TransactionType) -> &'static str {
-    match transaction_type {
-        TransactionType::Buy => "BUY",
-        TransactionType::Sell => "SELL",
-    }
-}
-
 fn insert_transaction(
     connection: &rusqlite::Transaction<'_>,
     transaction: Transaction,
@@ -638,11 +631,12 @@ fn insert_transaction(
     let created_at_time = now.time().to_string();
     let currency_code = transaction.currency.to_string();
     let currency_id = get_or_create_id(connection, "currencies", "code", &currency_code)?;
+    let transaction_type_str = transaction.r#type.to_string();
     let type_id = get_or_create_id(
         connection,
         "transaction_types",
         "code",
-        transaction_type_code(transaction.r#type),
+        &transaction_type_str,
     )?;
 
     connection.execute(
@@ -791,10 +785,13 @@ fn list_transactions_raw(
         ",
     )?;
     let transactions = statement
-        .query_map([], |row| {
+        .query_and_then([], |row| {
+            let type_str: String = row.get(1)?;
             Ok(ListedTransaction {
                 date: row.get(0)?,
-                r#type: row.get(1)?,
+                r#type: type_str
+                    .parse()
+                    .map_err(|_| eyre!("Invalid transaction type: {type_str}"))?,
                 asset_name: row.get(2)?,
                 isin: row.get(3)?,
                 quantity: row.get(4)?,
@@ -803,7 +800,7 @@ fn list_transactions_raw(
                 currency: row.get(7)?,
             })
         })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
+        .collect::<eyre::Result<Vec<_>>>()?;
     Ok(transactions)
 }
 

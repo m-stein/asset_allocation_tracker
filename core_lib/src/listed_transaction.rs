@@ -1,9 +1,10 @@
+use crate::TransactionType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListedTransaction {
     pub date: String,
-    pub r#type: String,
+    pub r#type: TransactionType,
     pub asset_name: Option<String>,
     pub isin: String,
     pub quantity: String,

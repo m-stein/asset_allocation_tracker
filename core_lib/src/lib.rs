@@ -27,9 +27,11 @@ pub use crate::transaction_asset::{ImportTransactionAssetsInput, TransactionAsse
 
 pub const APP_NAME: &str = "Tallytail";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, EnumString, Display)]
 pub enum TransactionType {
+    #[strum(serialize = "BUY")]
     Buy,
+    #[strum(serialize = "SELL")]
     Sell,
 }
 
