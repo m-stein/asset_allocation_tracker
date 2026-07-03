@@ -174,7 +174,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     const HELP_POPUP_WIDTH: f32 = 260.0;
     const DECIMAL_DISPLAY_MAX_FRACTION_DIGITS: usize = 10;
     const SYM_BTN_SIZE: f32 = Self::DEFAULT_INPUT_HEIGHT;
-    const BACK_BTN_SIZE: f32 = Self::SYM_BTN_SIZE * 1.2;
+    const BACK_BTN_SIZE: f32 = 24.0;
+    const BACK_BTN_FONT_SIZE: f32 = 18.0;
+    const BACK_BTN_RMARGIN: f32 = 10.0;
     const TABLE_GRID_SPACING: [f32; 2] = [16.0, 16.0];
     const TRANSACTION_ASSETS_GRID_SPACING: [f32; 2] = [20.0, 20.0];
     const TRANSACTION_ASSET_ROW_LINE_SPACING: f32 = 4.0;
@@ -247,8 +249,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_allocation_diagram_page(&mut self, ui: &mut egui::Ui) {
-        self.show_main_menu_back_header(ui, "Allocation Diagram");
-        ui.add_space(Self::SPACE_2);
+        self.show_back_header(ui, "Allocation Diagram", |app| {
+            app.page = Page::MainMenu;
+        });
 
         let prev_category_id = self.alloc_diagram_category_id;
         egui::ComboBox::from_id_salt("allocation_diagram_category")
@@ -340,20 +343,33 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
         }
     }
 
-    fn show_main_menu_back_header(&mut self, ui: &mut egui::Ui, title: &str) {
+    fn show_back_header(
+        &mut self,
+        ui: &mut egui::Ui,
+        title: &str,
+        on_back: impl FnOnce(&mut Self),
+    ) {
+        let mut go_back = false;
         ui.horizontal(|ui| {
-            if ui
-                .add_sized(
-                    [Self::BACK_BTN_SIZE, Self::BACK_BTN_SIZE],
-                    egui::Button::new(egui::RichText::new("‹").size(Self::H3_SIZE)),
-                )
-                .clicked()
-            {
-                self.page = Page::MainMenu;
-            }
-            ui.add_space(Self::SPACE_2);
+            ui.vertical(|ui| {
+                ui.add_space(3.0);
+                if ui
+                    .add_sized(
+                        [Self::BACK_BTN_SIZE, Self::BACK_BTN_SIZE],
+                        egui::Button::new(egui::RichText::new("‹").size(Self::BACK_BTN_FONT_SIZE)),
+                    )
+                    .clicked()
+                {
+                    go_back = true;
+                }
+            });
+            ui.add_space(Self::BACK_BTN_RMARGIN);
             ui.label(egui::RichText::new(title).heading().size(Self::H2_SIZE));
         });
+        ui.add_space(Self::SPACE_3);
+        if go_back {
+            on_back(self);
+        }
     }
 
     fn go_to_transactions_page(&mut self) {
@@ -531,8 +547,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_add_asset_page(&mut self, ui: &mut egui::Ui) {
-        self.show_main_menu_back_header(ui, "Add Asset");
-        ui.add_space(Self::SPACE_2);
+        self.show_back_header(ui, "Add Asset", |app| {
+            app.page = Page::MainMenu;
+        });
 
         ui.label("Name:");
         ui.text_edit_singleline(&mut self.add_asset_args.name);
@@ -633,24 +650,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_log_buy_transaction_page(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            if ui
-                .add_sized(
-                    [Self::BACK_BTN_SIZE, Self::BACK_BTN_SIZE],
-                    egui::Button::new(egui::RichText::new("‹").size(Self::H3_SIZE)),
-                )
-                .clicked()
-            {
-                self.go_to_transactions_page();
-            }
-            ui.add_space(Self::SPACE_2);
-            ui.label(
-                egui::RichText::new("Log a Purchase")
-                    .heading()
-                    .size(Self::H2_SIZE),
-            );
+        self.show_back_header(ui, "Log a Purchase", |app| {
+            app.go_to_transactions_page();
         });
-        ui.add_space(Self::SPACE_3);
 
         egui::Grid::new("log_buy_transaction_input_grid")
             .num_columns(3)
@@ -781,8 +783,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_transactions_page(&mut self, ui: &mut egui::Ui) {
-        self.show_main_menu_back_header(ui, "Transactions");
-        ui.add_space(Self::SPACE_3);
+        self.show_back_header(ui, "Transactions", |app| {
+            app.page = Page::MainMenu;
+        });
 
         ui.horizontal(|ui| {
             if ui
@@ -873,8 +876,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_transaction_assets_page(&mut self, ui: &mut egui::Ui) {
-        self.show_main_menu_back_header(ui, "Transaction Assets");
-        ui.add_space(Self::SPACE_3);
+        self.show_back_header(ui, "Transaction Assets", |app| {
+            app.page = Page::MainMenu;
+        });
 
         if ui
             .add_sized(
@@ -938,24 +942,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_import_transaction_assets_page(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            if ui
-                .add_sized(
-                    [Self::BACK_BTN_SIZE, Self::BACK_BTN_SIZE],
-                    egui::Button::new(egui::RichText::new("‹").size(Self::H3_SIZE)),
-                )
-                .clicked()
-            {
-                self.go_to_transaction_assets_page();
-            }
-            ui.add_space(Self::SPACE_2);
-            ui.label(
-                egui::RichText::new("Import Assets")
-                    .heading()
-                    .size(Self::H2_SIZE),
-            );
+        self.show_back_header(ui, "Import Assets", |app| {
+            app.go_to_transaction_assets_page();
         });
-        ui.add_space(Self::SPACE_3);
 
         ui.label("ISINs:");
         ui.horizontal(|ui| {
@@ -984,32 +973,17 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_log_sell_transaction_page(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            if ui
-                .add_sized(
-                    [Self::BACK_BTN_SIZE, Self::BACK_BTN_SIZE],
-                    egui::Button::new(egui::RichText::new("‹").size(Self::H3_SIZE)),
-                )
-                .clicked()
-            {
-                if self.portfolio_isin.is_some() {
-                    self.portfolio_isin = None;
-                    self.portfolio_asset_name = None;
-                    self.portfolio_isin_items.clear();
-                    self.reset_portfolio_sale_inputs();
-                    self.start_list_portfolio_overview_items();
-                } else {
-                    self.go_to_transactions_page();
-                }
+        self.show_back_header(ui, "Log a Sale", |app| {
+            if app.portfolio_isin.is_some() {
+                app.portfolio_isin = None;
+                app.portfolio_asset_name = None;
+                app.portfolio_isin_items.clear();
+                app.reset_portfolio_sale_inputs();
+                app.start_list_portfolio_overview_items();
+            } else {
+                app.go_to_transactions_page();
             }
-            ui.add_space(Self::SPACE_2);
-            ui.label(
-                egui::RichText::new("Log a Sale")
-                    .heading()
-                    .size(Self::H2_SIZE),
-            );
         });
-        ui.add_space(Self::SPACE_3);
 
         if let Some(isin) = self.portfolio_isin.clone() {
             ui.vertical(|ui| {
@@ -1216,8 +1190,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_configure_categories_page(&mut self, ui: &mut egui::Ui) {
-        self.show_main_menu_back_header(ui, "Configure Categories");
-        ui.add_space(Self::SPACE_2);
+        self.show_back_header(ui, "Configure Categories", |app| {
+            app.page = Page::MainMenu;
+        });
         if ui.button("Save").clicked() {
             self.start_configure_categories(self.cfg_catgs_input.clone());
         }
@@ -1392,8 +1367,9 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     }
 
     fn show_add_allocation_record_page(&mut self, ui: &mut egui::Ui) {
-        self.show_main_menu_back_header(ui, "Add Allocation Record");
-        ui.add_space(Self::SPACE_2);
+        self.show_back_header(ui, "Add Allocation Record", |app| {
+            app.page = Page::MainMenu;
+        });
 
         ui.label("Date:");
         ui.add(DatePickerButton::new(&mut self.allocation_record_date));
