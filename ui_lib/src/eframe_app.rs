@@ -179,6 +179,8 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     const TRANSACTION_ASSETS_GRID_SPACING: [f32; 2] = [20.0, 20.0];
     const TRANSACTION_ASSET_ROW_LINE_SPACING: f32 = 4.0;
     const TRANSACTION_ACTION_BTN_SIZE: [f32; 2] = [80.0, 32.0];
+    const BUY_QUANTITY_COLOR: egui::Color32 = egui::Color32::from_rgb(0, 190, 95);
+    const SELL_QUANTITY_COLOR: egui::Color32 = egui::Color32::from_rgb(235, 80, 95);
     const ASSET_NAME_DISPLAY_LEN: usize = 24;
     const MAX_TRANSACTION_ASSET_SUGGESTIONS: usize = 6;
     const REQUEST_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -831,11 +833,11 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                     let (quantity, color) = match transaction.r#type {
                         TransactionType::Buy => (
                             format!("+{}", transaction.quantity),
-                            egui::Color32::from_rgb(0, 190, 95),
+                            Self::BUY_QUANTITY_COLOR,
                         ),
                         TransactionType::Sell => (
                             format!("-{}", transaction.quantity),
-                            egui::Color32::from_rgb(235, 80, 95),
+                            Self::SELL_QUANTITY_COLOR,
                         ),
                     };
                     ui.vertical(|ui| {
@@ -1009,13 +1011,15 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
         ui.add_space(Self::SPACE_3);
 
         if let Some(isin) = self.portfolio_isin.clone() {
-            ui.horizontal(|ui| {
-                let title = self
-                    .portfolio_asset_name
-                    .as_deref()
-                    .map(|asset_name| format!("{asset_name} - {isin}"))
-                    .unwrap_or_else(|| isin.clone());
-                ui.label(egui::RichText::new(title).heading().size(Self::H3_SIZE));
+            ui.vertical(|ui| {
+                ui.label(
+                    egui::RichText::new(value_or_unknown(self.portfolio_asset_name.as_deref()))
+                        .heading()
+                        .size(Self::H3_SIZE)
+                        .strong(),
+                );
+                ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                ui.label(&isin);
             });
             ui.add_space(Self::SPACE_3);
 
@@ -1028,19 +1032,30 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                 .striped(true)
                 .spacing(Self::TABLE_GRID_SPACING)
                 .show(ui, |ui| {
-                    ui.strong("Buy Date");
-                    ui.strong("Quantity");
-                    ui.strong("Share Price");
-                    ui.strong("Order Value");
-                    ui.strong("Currency");
-                    ui.strong("Quantity");
+                    ui.strong("Qty / Date");
+                    ui.strong("Value / Price");
+                    ui.strong("Ccy");
+                    ui.strong("Sell Qty");
                     ui.end_row();
 
                     for item in &self.portfolio_isin_items {
-                        ui.label(&item.buy_date);
-                        ui.label(Self::format_decimal_for_display(&item.quantity));
-                        ui.label(Self::format_decimal_for_display(&item.share_price));
-                        ui.label(Self::format_decimal_for_display(&item.order_value));
+                        ui.vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "+{}",
+                                    Self::format_decimal_for_display(&item.quantity)
+                                ))
+                                .color(Self::BUY_QUANTITY_COLOR)
+                                .strong(),
+                            );
+                            ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                            ui.label(&item.buy_date);
+                        });
+                        ui.vertical(|ui| {
+                            ui.label(Self::format_decimal_for_display(&item.order_value));
+                            ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                            ui.label(Self::format_decimal_for_display(&item.share_price));
+                        });
                         ui.label(&item.currency);
                         let quantity = self
                             .log_sell_transaction_input
@@ -1048,7 +1063,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                             .entry(item.portfolio_item_id)
                             .or_default();
                         ui.add_sized(
-                            [Self::DEFAULT_INPUT_WIDTH, Self::DEFAULT_INPUT_HEIGHT],
+                            [80.0, Self::DEFAULT_INPUT_HEIGHT],
                             TextEdit::singleline(quantity),
                         );
                         ui.end_row();
