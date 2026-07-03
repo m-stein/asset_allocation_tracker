@@ -821,24 +821,52 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
             .striped(true)
             .spacing(Self::TABLE_GRID_SPACING)
             .show(ui, |ui| {
-                ui.strong("Date");
-                ui.strong("Type");
-                ui.strong("Asset");
-                ui.strong("ISIN");
-                ui.strong("Quantity");
-                ui.strong("Share Price");
-                ui.strong("Order Value");
-                ui.strong("Currency");
+                ui.strong("Qty / Date");
+                ui.strong("Name / ISIN");
+                ui.strong("Value / Price");
+                ui.strong("Ccy");
                 ui.end_row();
 
                 for transaction in &self.listed_transactions {
-                    ui.label(&transaction.date);
-                    ui.label(&transaction.r#type);
-                    ui.label(transaction.asset_name.as_deref().unwrap_or("?"));
-                    ui.label(&transaction.isin);
-                    ui.label(&transaction.quantity);
-                    ui.label(&transaction.share_price);
-                    ui.label(&transaction.order_value);
+                    let (quantity, color) = match transaction.r#type.as_str() {
+                        "BUY" => (
+                            format!("+{}", transaction.quantity),
+                            egui::Color32::from_rgb(0, 190, 95),
+                        ),
+                        "SELL" => (
+                            format!("-{}", transaction.quantity),
+                            egui::Color32::from_rgb(235, 80, 95),
+                        ),
+                        _ => (
+                            transaction.quantity.clone(),
+                            ui.visuals().widgets.noninteractive.fg_stroke.color,
+                        ),
+                    };
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new(quantity).color(color).strong());
+                        ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                        ui.label(&transaction.date);
+                    });
+                    ui.vertical(|ui| {
+                        let asset_name = value_or_unknown(transaction.asset_name.as_deref());
+                        let response = ui.label(
+                            egui::RichText::new(trunc_str(
+                                asset_name,
+                                Self::ASSET_NAME_DISPLAY_LEN,
+                            ))
+                            .strong(),
+                        );
+                        if asset_name != UNKNOWN_STR {
+                            response.on_hover_text(asset_name);
+                        }
+                        ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                        ui.label(&transaction.isin);
+                    });
+                    ui.vertical(|ui| {
+                        ui.label(&transaction.order_value);
+                        ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                        ui.label(&transaction.share_price);
+                    });
                     ui.label(&transaction.currency);
                     ui.end_row();
                 }
