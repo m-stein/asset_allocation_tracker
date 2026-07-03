@@ -181,6 +181,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
     const TRANSACTION_ACTION_BTN_SIZE: [f32; 2] = [80.0, 32.0];
     const BUY_QUANTITY_COLOR: egui::Color32 = egui::Color32::from_rgb(0, 190, 95);
     const SELL_QUANTITY_COLOR: egui::Color32 = egui::Color32::from_rgb(235, 80, 95);
+    const CLICKABLE_ROW_HOVER_ALPHA: u8 = 26;
     const ASSET_NAME_DISPLAY_LEN: usize = 24;
     const MAX_TRANSACTION_ASSET_SUGGESTIONS: usize = 6;
     const REQUEST_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -1132,32 +1133,74 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
             .striped(true)
             .spacing(Self::TABLE_GRID_SPACING)
             .show(ui, |ui| {
-                ui.strong("Name");
-                ui.strong("ISIN");
+                ui.strong("Name / ISIN");
                 ui.strong("Qty");
-                ui.strong("Price");
-                ui.strong("Value");
+                ui.strong("Value / Price");
                 ui.strong("Ccy");
                 ui.end_row();
 
                 for position in &self.portfolio_overview_items {
-                    if ui
-                        .link(position.asset_name.as_deref().unwrap_or(""))
-                        .clicked()
-                    {
-                        selected_position =
-                            Some((position.isin.clone(), position.asset_name.clone()));
-                    }
-                    if ui.link(&position.isin).clicked() {
-                        selected_position =
-                            Some((position.isin.clone(), position.asset_name.clone()));
-                    }
-                    ui.label(Self::format_decimal_for_display(&position.quantity));
-                    ui.label(Self::format_decimal_for_display(
-                        &position.average_share_price,
+                    let mut row_rect = egui::Rect::NOTHING;
+                    let name_response = ui
+                        .vertical(|ui| {
+                            let asset_name = value_or_unknown(position.asset_name.as_deref());
+                            let response = ui.label(
+                                egui::RichText::new(trunc_str(
+                                    asset_name,
+                                    Self::ASSET_NAME_DISPLAY_LEN,
+                                ))
+                                .strong(),
+                            );
+                            if asset_name != UNKNOWN_STR {
+                                response.clone().on_hover_text(asset_name);
+                            }
+                            ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                            ui.label(&position.isin);
+                        })
+                        .response;
+                    row_rect = row_rect.union(name_response.rect);
+
+                    let quantity_response =
+                        ui.label(Self::format_decimal_for_display(&position.quantity));
+                    row_rect = row_rect.union(quantity_response.rect);
+
+                    let value_response = ui
+                        .vertical(|ui| {
+                            ui.label(Self::format_decimal_for_display(&position.total_value));
+                            ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                            ui.label(Self::format_decimal_for_display(
+                                &position.average_share_price,
+                            ));
+                        })
+                        .response;
+                    row_rect = row_rect.union(value_response.rect);
+
+                    let currency_response = ui.label(&position.currency);
+                    row_rect = row_rect.union(currency_response.rect);
+
+                    let mut row_rect = row_rect.expand2(egui::vec2(
+                        Self::TABLE_GRID_SPACING[0] / 2.0,
+                        Self::TABLE_GRID_SPACING[1] / 2.0,
                     ));
-                    ui.label(Self::format_decimal_for_display(&position.total_value));
-                    ui.label(&position.currency);
+                    row_rect.max.x += 10.0;
+                    let row_response = ui
+                        .interact(
+                            row_rect,
+                            ui.make_persistent_id(("portfolio_position", &position.isin)),
+                            egui::Sense::click(),
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if row_response.hovered() {
+                        ui.painter().rect_filled(
+                            row_rect,
+                            egui::CornerRadius::ZERO,
+                            egui::Color32::from_white_alpha(Self::CLICKABLE_ROW_HOVER_ALPHA),
+                        );
+                    }
+                    if row_response.clicked() {
+                        selected_position =
+                            Some((position.isin.clone(), position.asset_name.clone()));
+                    }
                     ui.end_row();
                 }
             });
