@@ -3,9 +3,9 @@
 Tallytail is a personal asset and investment management app. It helps track
 asset allocations, transactions, and portfolio positions.
 
-## Initial setup
+## Run locally
 
-### Dependencioes
+### Dependencies
 
 - Rust and cargo (https://rust-lang.org/, tested with rustc 1.94.1)
 - Clang (https://github.com/llvm/llvm-project, tested with clang 22.1.5)
@@ -15,21 +15,9 @@ asset allocations, transactions, and portfolio positions.
 
 The `TALLYTAIL_DATA_DIR` environment variable must point to the folder where your SQLite and RON files for Tallytail are stored.
 
-Temporary:
-
-```powershell
-$Env:TALLYTAIL_DATA_DIR = "C:\tallytail_data"
-```
-
-Persistently:
-
 ```powershell
 setx TALLYTAIL_DATA_DIR "C:\tallytail_data"
 ```
-
-For Fly.io, the Dockerfile sets `TALLYTAIL_DATA_DIR=/app/data`, and the persistent volume is mounted to `/app/data`.
-
-## Running the app from source
 
 ### Desktop target
 
@@ -43,11 +31,33 @@ cargo run -p desktop_app
 cargo run -p web_back_end
 ```
 
+In a second shell:
 ```powershell
 trunk serve --config web_front_end/Trunk.toml
 ```
 
 Then, open the front end URL in a browser.
+
+## Deploy to a fly.io account
+
+Install `flyctl` and run the deployment commands below from the repository root.
+If your Fly app uses a different name than `tallytail`, update `app` in `fly.toml`
+and replace `tallytail` in the commands. If you want to use another region,
+replace `fra` in the commands and update `primary_region` in `fly.toml`. 
+
+```powershell
+flyctl auth login
+flyctl apps create tallytail
+flyctl volumes create tallytail_data --app tallytail --region fra --size 1
+flyctl deploy --app tallytail
+```
+
+Check your deployment:
+
+```powershell
+flyctl open --app tallytail
+flyctl logs --app tallytail
+```
 
 ## Preparing changes for a commit
 
