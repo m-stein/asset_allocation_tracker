@@ -92,10 +92,12 @@ fn trunc_str(value: &str, max_chars: usize) -> String {
     format!("{truncated}...")
 }
 
+static UNKNOWN_STR: &str = "-";
+
 fn value_or_unknown(value: Option<&str>) -> &str {
     value
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or("?")
+        .unwrap_or(UNKNOWN_STR)
 }
 
 fn format_updated_at(date: Option<&str>, time: Option<&str>) -> String {
@@ -884,7 +886,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                             ))
                             .strong(),
                         );
-                        if asset_name != "?" {
+                        if asset_name != UNKNOWN_STR {
                             response.on_hover_text(asset_name);
                         }
                         ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
