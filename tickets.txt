@@ -1,7 +1,9 @@
-Last added: T37
+Last added: T39
 
 Open
 ####
+
+T39: Make the UI design suitable for smartphone users
 
 T5: Allow for configuring one target allocation per category
 
@@ -42,8 +44,6 @@ T31: Improve name of load_png_data request to, e.g., get_file_content
 T32: Support tracking transactions independently from the allocation records
 
 T36: Autocompletion for ISINs via asset names when logging a buy transaction
-
-T37: Make fit for online hosting
 
 
 Closed
@@ -96,3 +96,7 @@ T33: Reduce redundancy of start_* and poll_* methods in EframeApp
 T26: First attempt to make the app remotely usable via web frontend.
      Conclusion: The project should be restructured fundamentally for a
      clean implementation. This will be done in the context of T29
+
+T37: Make fit for online hosting
+
+T38: Make `cargo run` from the repo root the default

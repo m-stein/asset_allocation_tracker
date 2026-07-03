@@ -62,7 +62,7 @@ pub fn get_alloc_diagram_data(
 }
 
 pub fn load_png_data(path: String) -> eyre::Result<Vec<u8>> {
-    Ok(std::fs::read(format!("../{path}"))?)
+    Ok(std::fs::read(path)?)
 }
 
 pub fn add_asset(args: AddAssetArgs) -> eyre::Result<()> {

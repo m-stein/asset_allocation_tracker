@@ -27,7 +27,7 @@ COPY img ./img
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
-    cd web_front_end && trunk build --release
+    trunk build --config web_front_end/Trunk.toml --release
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
@@ -49,7 +49,7 @@ ENV TALLYTAIL_DATA_DIR=/app/data
 
 COPY --from=builder /build-output/tallytail-web /usr/local/bin/tallytail-web
 COPY --from=builder /app/web_front_end/dist /app/web_front_end/dist
-COPY --from=builder /app/img /img
+COPY --from=builder /app/img /app/img
 
 EXPOSE 8080
 

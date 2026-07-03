@@ -34,20 +34,17 @@ For Fly.io, the Dockerfile sets `TALLYTAIL_DATA_DIR=/app/data`, and the persiste
 ### Desktop target
 
 ```powershell
-cd desktop_app
-cargo run
+cargo run -p desktop_app
 ```
 
 ### Web target
 
 ```powershell
-cd web_back_end
-cargo run
+cargo run -p web_back_end
 ```
 
 ```powershell
-cd web_front_end
-trunk serve
+trunk serve --config web_front_end/Trunk.toml
 ```
 
 Then, open the front end URL in a browser.
