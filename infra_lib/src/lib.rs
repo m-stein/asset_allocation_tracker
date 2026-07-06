@@ -8,13 +8,26 @@ use core_lib::{
     category_value::CategoryValue,
 };
 use eyre::eyre;
-use rusqlite::{params, types::FromSqlError};
+use rusqlite::{OptionalExtension, params, types::FromSqlError};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashSet},
     env, fs,
     path::{Path, PathBuf},
 };
+
+pub const TRANSACTIONS_DB_SCHEMA_VERSION: u64 = 1;
+pub const ASSETS_DB_SCHEMA_VERSION: u64 = 1;
+pub const ALLOCATION_RECORD_FORMAT_VERSION: u64 = 1;
+
+const SCHEMA_VERSION_KEY: &str = "schema_version";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PersistedAllocationRecord {
+    format_version: u64,
+    record: AllocationRecord,
+}
 
 fn data_dir_path() -> PathBuf {
     env::var("TALLYTAIL_DATA_DIR")
@@ -40,16 +53,38 @@ fn ensure_data_dir() -> eyre::Result<()> {
 }
 
 fn open_transactions_connection() -> eyre::Result<rusqlite::Connection> {
-    ensure_data_dir()?;
-    let connection = rusqlite::Connection::open(transactions_db_path())?;
-    ensure_transactions_schema(&connection)?;
-    Ok(connection)
+    open_db_connection(
+        transactions_db_path(),
+        "transactions database",
+        TRANSACTIONS_DB_SCHEMA_VERSION,
+        initialize_transactions_schema,
+    )
 }
 
 fn open_assets_connection() -> eyre::Result<rusqlite::Connection> {
+    open_db_connection(
+        assets_db_path(),
+        "assets database",
+        ASSETS_DB_SCHEMA_VERSION,
+        initialize_assets_schema,
+    )
+}
+
+fn open_db_connection(
+    path: PathBuf,
+    name: &str,
+    schema_version: u64,
+    initialize_schema: fn(&rusqlite::Connection) -> eyre::Result<()>,
+) -> eyre::Result<rusqlite::Connection> {
     ensure_data_dir()?;
-    let connection = rusqlite::Connection::open(assets_db_path())?;
-    ensure_assets_schema(&connection)?;
+    let is_new_database = !path.exists();
+    let connection = rusqlite::Connection::open(path)?;
+    connection.execute_batch("PRAGMA foreign_keys = ON;")?;
+    if is_new_database {
+        initialize_schema(&connection)?;
+    } else {
+        ensure_database_schema_version(&connection, name, schema_version)?;
+    }
     Ok(connection)
 }
 
@@ -469,12 +504,18 @@ fn is_valid_isin(isin: &str) -> bool {
     sum.is_multiple_of(10)
 }
 
-fn ensure_transactions_schema(connection: &rusqlite::Connection) -> eyre::Result<()> {
-    connection.execute_batch(
+fn initialize_transactions_schema(connection: &rusqlite::Connection) -> eyre::Result<()> {
+    connection.execute_batch(&format!(
         "
-        PRAGMA foreign_keys = ON;
+        CREATE TABLE schema_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
 
-        CREATE TABLE IF NOT EXISTS assets (
+        INSERT INTO schema_metadata (key, value)
+        VALUES ('{SCHEMA_VERSION_KEY}', '{TRANSACTIONS_DB_SCHEMA_VERSION}');
+
+        CREATE TABLE assets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             isin TEXT NOT NULL UNIQUE,
             symbol TEXT,
@@ -488,32 +529,32 @@ fn ensure_transactions_schema(connection: &rusqlite::Connection) -> eyre::Result
             FOREIGN KEY (updated_at_date_id) REFERENCES dates(id)
         );
 
-        CREATE TABLE IF NOT EXISTS currencies (
+        CREATE TABLE currencies (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT NOT NULL UNIQUE
         );
 
-        CREATE TABLE IF NOT EXISTS transaction_types (
+        CREATE TABLE transaction_types (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT NOT NULL UNIQUE
         );
 
-        CREATE TABLE IF NOT EXISTS dates (
+        CREATE TABLE dates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL UNIQUE
         );
 
-        CREATE TABLE IF NOT EXISTS exchanges (
+        CREATE TABLE exchanges (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE
         );
 
-        CREATE TABLE IF NOT EXISTS quote_types (
+        CREATE TABLE quote_types (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE
         );
 
-        CREATE TABLE IF NOT EXISTS transactions (
+        CREATE TABLE transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date_id INTEGER NOT NULL,
             type_id INTEGER NOT NULL,
@@ -531,14 +572,14 @@ fn ensure_transactions_schema(connection: &rusqlite::Connection) -> eyre::Result
             FOREIGN KEY (created_at_date_id) REFERENCES dates(id)
         );
 
-        CREATE TABLE IF NOT EXISTS portfolio_items (
+        CREATE TABLE portfolio_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             buy_transaction_id INTEGER NOT NULL UNIQUE,
             remaining_quantity TEXT NOT NULL,
             FOREIGN KEY (buy_transaction_id) REFERENCES transactions(id)
         );
 
-        CREATE TABLE IF NOT EXISTS portfolio_item_sales (
+        CREATE TABLE portfolio_item_sales (
             portfolio_item_id INTEGER NOT NULL,
             sell_transaction_id INTEGER NOT NULL,
             quantity TEXT NOT NULL,
@@ -546,29 +587,35 @@ fn ensure_transactions_schema(connection: &rusqlite::Connection) -> eyre::Result
             FOREIGN KEY (portfolio_item_id) REFERENCES portfolio_items(id),
             FOREIGN KEY (sell_transaction_id) REFERENCES transactions(id)
         );
-        ",
-    )?;
+        "
+    ))?;
     Ok(())
 }
 
-fn ensure_assets_schema(connection: &rusqlite::Connection) -> eyre::Result<()> {
-    connection.execute_batch(
+fn initialize_assets_schema(connection: &rusqlite::Connection) -> eyre::Result<()> {
+    connection.execute_batch(&format!(
         "
-        PRAGMA foreign_keys = ON;
+        CREATE TABLE schema_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
 
-        CREATE TABLE IF NOT EXISTS assets (
+        INSERT INTO schema_metadata (key, value)
+        VALUES ('{SCHEMA_VERSION_KEY}', '{ASSETS_DB_SCHEMA_VERSION}');
+
+        CREATE TABLE assets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
             reference_type TEXT NOT NULL,
             reference_value TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS asset_categories (
+        CREATE TABLE asset_categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE
         );
 
-        CREATE TABLE IF NOT EXISTS asset_category_values (
+        CREATE TABLE asset_category_values (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             asset_category_id INTEGER NOT NULL,
             name TEXT NOT NULL,
@@ -576,7 +623,7 @@ fn ensure_assets_schema(connection: &rusqlite::Connection) -> eyre::Result<()> {
             FOREIGN KEY (asset_category_id) REFERENCES asset_categories(id)
         );
 
-        CREATE TABLE IF NOT EXISTS asset_category_value_assignments (
+        CREATE TABLE asset_category_value_assignments (
             asset_id INTEGER NOT NULL,
             asset_category_value_id INTEGER NOT NULL,
             ratio REAL NOT NULL,
@@ -584,9 +631,56 @@ fn ensure_assets_schema(connection: &rusqlite::Connection) -> eyre::Result<()> {
             FOREIGN KEY (asset_id) REFERENCES assets(id),
             FOREIGN KEY (asset_category_value_id) REFERENCES asset_category_values(id)
         );
-        ",
-    )?;
+        "
+    ))?;
     Ok(())
+}
+
+fn ensure_database_schema_version(
+    connection: &rusqlite::Connection,
+    name: &str,
+    current_version: u64,
+) -> eyre::Result<()> {
+    let stored_version = get_database_schema_version(connection, name)?;
+    if stored_version != current_version {
+        return Err(eyre!(
+            "{name} schema version {stored_version} does not match supported version {current_version}"
+        ));
+    }
+    Ok(())
+}
+
+fn get_database_schema_version(connection: &rusqlite::Connection, name: &str) -> eyre::Result<u64> {
+    let has_metadata_table: bool = connection.query_row(
+        "
+        SELECT EXISTS (
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table'
+                AND name = 'schema_metadata'
+        )
+        ",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_metadata_table {
+        return Err(eyre!("{name} is missing schema version"));
+    }
+
+    let version = connection
+        .query_row(
+            "
+            SELECT value
+            FROM schema_metadata
+            WHERE key = ?1
+            ",
+            [SCHEMA_VERSION_KEY],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or_else(|| eyre!("{name} is missing schema version"))?;
+
+    Ok(version.parse::<u64>()?)
 }
 
 fn get_or_create_id(
@@ -1079,8 +1173,21 @@ fn get_latest_records(limit: usize) -> eyre::Result<Vec<AllocationRecord>> {
     ensure_data_dir()?;
     get_latest_record_paths(&allocation_records_dir(), limit)?
         .into_iter()
-        .map(|path| Ok(ron::from_str(&fs::read_to_string(path)?)?))
+        .map(|path| read_allocation_record(&path))
         .collect()
+}
+
+fn read_allocation_record(path: &Path) -> eyre::Result<AllocationRecord> {
+    let persisted: PersistedAllocationRecord = ron::from_str(&fs::read_to_string(path)?)?;
+    if persisted.format_version != ALLOCATION_RECORD_FORMAT_VERSION {
+        return Err(eyre!(
+            "allocation record '{}' has format version {}, but supported version is {}",
+            path.display(),
+            persisted.format_version,
+            ALLOCATION_RECORD_FORMAT_VERSION
+        ));
+    }
+    Ok(persisted.record)
 }
 
 fn get_category_name_by_id(category_id: i64) -> eyre::Result<String> {
@@ -1241,7 +1348,9 @@ mod tests {
     fn creates_assets_schema_for_empty_database() {
         let connection = rusqlite::Connection::open_in_memory().unwrap();
 
-        ensure_assets_schema(&connection).unwrap();
+        initialize_assets_schema(&connection).unwrap();
+        ensure_database_schema_version(&connection, "assets database", ASSETS_DB_SCHEMA_VERSION)
+            .unwrap();
 
         connection
             .execute(
@@ -1274,6 +1383,62 @@ mod tests {
 
         assert_eq!(asset_count, 1);
         assert_eq!(category_count, 1);
+    }
+
+    #[test]
+    fn creates_schema_version_for_empty_assets_database() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+
+        initialize_assets_schema(&connection).unwrap();
+
+        let version = get_database_schema_version(&connection, "assets database").unwrap();
+        assert_eq!(version, ASSETS_DB_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn rejects_existing_assets_database_without_schema_version() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection
+            .execute(
+                "CREATE TABLE assets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    reference_type TEXT NOT NULL,
+                    reference_value TEXT NOT NULL
+                )",
+                [],
+            )
+            .unwrap();
+
+        let err = ensure_database_schema_version(
+            &connection,
+            "assets database",
+            ASSETS_DB_SCHEMA_VERSION,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(err.contains("missing schema version"));
+    }
+
+    #[test]
+    fn rejects_allocation_record_with_unsupported_format_version() {
+        let dir = unique_test_path("allocation_records");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("2026-07-06.ron");
+        let persisted = PersistedAllocationRecord {
+            format_version: ALLOCATION_RECORD_FORMAT_VERSION + 1,
+            record: AllocationRecord {
+                date: "2026-07-06".to_string(),
+                positions: Vec::new(),
+            },
+        };
+        std::fs::write(&path, ron::to_string(&persisted).unwrap()).unwrap();
+
+        let err = read_allocation_record(&path).unwrap_err().to_string();
+
+        assert!(err.contains("format version"));
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

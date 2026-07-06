@@ -127,3 +127,5 @@ T32: Support tracking transactions independently from the allocation records
 T36: Autocompletion for ISINs via asset names when logging a buy transaction
 
 T51: Control client access in web variant via an unlock pattern with client-specific blocks after too many attempts
+
+T52: Store and check schema/format versions for DBs and allocation-record files

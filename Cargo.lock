@@ -2122,6 +2122,7 @@ dependencies = [
  "rusqlite",
  "rust_decimal",
  "rustyfinance",
+ "serde",
 ]
 
 [[package]]
