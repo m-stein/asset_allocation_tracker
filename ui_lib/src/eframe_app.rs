@@ -19,9 +19,10 @@ use std::time::Duration;
 use strum::IntoEnumIterator;
 
 macro_rules! define_request_data {
-    ($($request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
+    ($(#[access($access:ident)] $request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
         paste::paste! {
             #[derive(Default)]
+            #[allow(dead_code)]
             struct RequestData {
                 $([<$request _rx>]: Option<Receiver<eyre::Result<$ret_ty>>>,)*
             }
@@ -35,31 +36,35 @@ macro_rules! implement_requests {
 
     // For each request, redirect to one of the @func arms depending on whether
     // the request has an argument or not
-    ($($request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
+    ($(#[access($access:ident)] $request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
         $(
-            implement_requests!(@start_req_fn $request ($($arg_ty)?) -> $ret_ty);
-            paste::paste! {
-                fn [<poll_ $request _rx>](&mut self) -> Option<$ret_ty> {
-                    let mut res: Option<$ret_ty> = None;
-                    if let Some(rx) = &self.request_data.[<$request _rx>]
-                        && let Ok(result) = rx.try_recv()
-                    {
-                        match result {
-                            Ok(result) => {
-                                self.message = None;
-                                res = Some(result);
-                            }
-                            Err(error) => {
-                                self.message = Some(error.to_string());
-                            }
-                        }
-                        self.request_data.[<$request _rx>] = None;
-                        self.decr_pending_req_cnt();
-                    }
-                    res
-                }
-            }
+            implement_requests!(@maybe_request $access $request ($($arg_ty)?) -> $ret_ty);
         )*
+    };
+    (@maybe_request Public $request:ident ($($arg_ty:ty)?) -> $ret_ty:ty) => {};
+    (@maybe_request Token $request:ident ($($arg_ty:ty)?) -> $ret_ty:ty) => {
+        implement_requests!(@start_req_fn $request ($($arg_ty)?) -> $ret_ty);
+        paste::paste! {
+            fn [<poll_ $request _rx>](&mut self) -> Option<$ret_ty> {
+                let mut res: Option<$ret_ty> = None;
+                if let Some(rx) = &self.request_data.[<$request _rx>]
+                    && let Ok(result) = rx.try_recv()
+                {
+                    match result {
+                        Ok(result) => {
+                            self.message = None;
+                            res = Some(result);
+                        }
+                        Err(error) => {
+                            self.message = Some(error.to_string());
+                        }
+                    }
+                    self.request_data.[<$request _rx>] = None;
+                    self.decr_pending_req_cnt();
+                }
+                res
+            }
+        }
     };
     // Start-request function-template for requests without an argument
     (@start_req_fn $request:ident () -> $ret_ty:ty) => {

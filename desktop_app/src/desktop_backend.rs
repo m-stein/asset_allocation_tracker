@@ -7,9 +7,23 @@ macro_rules! implement_requests {
 
     // For each request, redirect to one of the @one arms depending on whether
     // the request has an argument or not
-    ($($request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
+    ($(#[access($access:ident)] $request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
         paste::paste! {
             $(implement_requests!(@handler $request ($($arg_ty)?) -> $ret_ty);)*
+        }
+    };
+    (@handler unlock (core_lib::UnlockPatternInput) -> core_lib::AccessGrant) => {
+        fn start_unlock(
+            &self,
+            _args: core_lib::UnlockPatternInput,
+        ) -> Receiver<eyre::Result<core_lib::AccessGrant>> {
+            let (tx, rx) = channel();
+            thread::spawn(move || {
+                let _ = tx.send(Err(eyre::eyre!(
+                    "Unlock is only available in the web app"
+                )));
+            });
+            rx
         }
     };
     // Request handler template for requests without arguments

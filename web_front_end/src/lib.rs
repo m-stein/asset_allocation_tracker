@@ -1,7 +1,7 @@
 mod web_backend;
 
 use crate::web_backend::WebBackend;
-use ui_lib::eframe_app::EframeApp;
+use ui_lib::lock_screen::LockScreen;
 use wasm_bindgen::JsCast;
 
 #[wasm_bindgen::prelude::wasm_bindgen(start)]
@@ -18,7 +18,7 @@ pub async fn start() -> eyre::Result<(), wasm_bindgen::JsValue> {
         .start(
             canvas,
             eframe::WebOptions::default(),
-            Box::new(|_| Ok(Box::new(EframeApp::new(WebBackend)?))),
+            Box::new(|_| Ok(Box::new(LockScreen::new(WebBackend::new())))),
         )
         .await
 }

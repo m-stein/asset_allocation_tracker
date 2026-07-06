@@ -1,7 +1,32 @@
-Last added: T39
+Last added: T51
 
 Open
 ####
+
+T50: Consider splitting up the request list into two lists with unlock in one and all remaining requests in the other.
+     Unlock actually is LockScreen-specific and implemented in WebBackend and all other requests are implementend infra_lib
+     while being EframeApp-specific. This would also eliminate the need for the access annotations.
+
+T49: Do not use both "back_end" and "backend" in names
+
+T48: Improve macro names and break down double-stage macros into single-stage macros
+     For example web_backend.rs: implement_requests -> define_start_request_methods + define_start_request_method
+
+T47: How to deal with assets that have special tax rules like physical gold that is taxfree after 12 months?
+
+T46: How to deal with trades for wich tax was deducted and settled by broker when it comes to tax declaration?
+
+T45: "Log a Sale" should have a button for selectiong all lots
+
+T44: Items in "Transactions" should be clickable like the ones in "Log a Sale" and lead to a "Modify this item" dialog
+
+T43: The core_lib should probably use a Trait (repository pattern) in order to access the infra_lib logic
+
+T42: The items in "Transaction Assets" should be clickable like the ones in "Log a Sale" and lead to a "Modify this item" dialog
+
+T41: Would it be sensible to have a schema version number for the databases and RON file?
+
+T40: Would it be sensible to move the user settings like data dir or unlock pattern to an unversioned configuration file?
 
 T39: Make the UI design suitable for smartphone users
 
@@ -40,10 +65,6 @@ T30: The backend implementation of the load_png_data request
      Otherwise users could read the content of any server file
 
 T31: Improve name of load_png_data request to, e.g., get_file_content
-
-T32: Support tracking transactions independently from the allocation records
-
-T36: Autocompletion for ISINs via asset names when logging a buy transaction
 
 
 Closed
@@ -100,3 +121,9 @@ T26: First attempt to make the app remotely usable via web frontend.
 T37: Make fit for online hosting
 
 T38: Make `cargo run` from the repo root the default
+
+T32: Support tracking transactions independently from the allocation records
+
+T36: Autocompletion for ISINs via asset names when logging a buy transaction
+
+T51: Control client access in web variant via an unlock pattern with client-specific blocks after too many attempts

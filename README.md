@@ -49,7 +49,18 @@ replace `fra` in the commands and update `primary_region` in `fly.toml`.
 flyctl auth login
 flyctl apps create tallytail
 flyctl volumes create tallytail_data --app tallytail --region fra --size 1
+flyctl secrets set TALLYTAIL_UNLOCK_PATTERN=123456 --app tallytail
 flyctl deploy --app tallytail
+```
+
+`TALLYTAIL_UNLOCK_PATTERN` is required for the web app. It configures the unlock
+pattern the user has to enter each time she or he opens the app. Use at least 6
+points without repetitions. The point numbers are:
+
+```text
+1 2 3
+4 5 6
+7 8 9
 ```
 
 Check your deployment:
@@ -58,6 +69,26 @@ Check your deployment:
 flyctl open --app tallytail
 flyctl logs --app tallytail
 ```
+
+After 3 failed unlock attempts from the same client IP, the web unlock is
+blocked for that IP for 3 hours. This blocked state is stored in
+`TALLYTAIL_DATA_DIR/access_control_state.ron`, so it survives Fly machine
+restarts.
+
+Check the current access-control state of any client:
+
+```powershell
+flyctl ssh console --app tallytail -C "cat /app/data/access_control_state.ron"
+```
+
+To reset the access control state of all clients, delete this file from the
+Fly volume:
+
+```powershell
+flyctl ssh console --app tallytail -C "rm -f /app/data/access_control_state.ron"
+```
+
+## Participate in development
 
 ## Preparing changes for a commit
 

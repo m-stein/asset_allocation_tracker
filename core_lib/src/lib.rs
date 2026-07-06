@@ -101,3 +101,14 @@ pub struct Asset {
     pub name: String,
     pub reference: AssetReference,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnlockPatternInput {
+    pub pattern: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessGrant {
+    pub access_token: String,
+    pub expires_in_seconds: u64,
+}

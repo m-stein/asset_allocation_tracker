@@ -1,20 +1,25 @@
+mod access_control;
 mod error;
 
+use crate::access_control::{AccessControl, UnlockAttemptResult, ensure_has_access};
 use crate::error::WebBackEndError;
 use axum::{
     Json, Router,
+    extract::State,
+    http::HeaderMap,
     response::Html,
     routing::{get, get_service, post},
 };
 use core_lib::call_macro_with_request_list;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 macro_rules! implement_requests {
-    ($($request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
+    ($(#[access($access:ident)] $request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
 
-        fn router() -> Router {
+        fn build_router() -> Router<AccessControl> {
             let static_service = get_service(ServeDir::new("web_front_end/dist"));
 
             Router::new()
@@ -23,19 +28,52 @@ macro_rules! implement_requests {
                 .fallback_service(static_service)
         }
 
-        $(implement_requests!(@handler $request ($($arg_ty)?) -> $ret_ty);)*
+        $(implement_requests!(@handler $access $request ($($arg_ty)?) -> $ret_ty);)*
     };
-    (@handler $request:ident () -> $ret_ty:ty) => {
+    (@handler Public unlock ($arg_ty:ty) -> $ret_ty:ty) => {
+        async fn unlock(
+            State(access_control): State<AccessControl>,
+            headers: HeaderMap,
+            Json(input): Json<$arg_ty>,
+        ) -> Result<Json<$ret_ty>, WebBackEndError> {
+            match access_control.unlock(&headers, &input.pattern)? {
+                UnlockAttemptResult::Unlocked(session) => Ok(Json(session)),
+                UnlockAttemptResult::PatternNotAccepted => {
+                    Err(WebBackEndError::unauthorized("Pattern not accepted"))
+                }
+                UnlockAttemptResult::TooManyAttempts => Err(WebBackEndError::blocked(
+                    "Too many attempts, access blocked",
+                )),
+            }
+        }
+    };
+    (@handler Token $request:ident () -> $ret_ty:ty) => {
         async fn $request(
+            State(access_control): State<AccessControl>,
+            headers: HeaderMap,
             Json(()): Json<()>,
         ) -> Result<Json<$ret_ty>, WebBackEndError> {
+            ensure_has_access(&access_control, &headers)?;
             Ok(Json(infra_lib::$request()?))
         }
     };
-    (@handler $request:ident ($arg_ty:ty) -> $ret_ty:ty) => {
+    (@handler Token $request:ident ($arg_ty:ty) -> $ret_ty:ty) => {
         async fn $request(
+            State(access_control): State<AccessControl>,
+            headers: HeaderMap,
             Json(args): Json<$arg_ty>,
         ) -> Result<Json<$ret_ty>, WebBackEndError> {
+            ensure_has_access(&access_control, &headers)?;
+            Ok(Json(infra_lib::$request(args)?))
+        }
+    };
+    (@handler Public $request:ident () -> $ret_ty:ty) => {
+        async fn $request(Json(()): Json<()>) -> Result<Json<$ret_ty>, WebBackEndError> {
+            Ok(Json(infra_lib::$request()?))
+        }
+    };
+    (@handler Public $request:ident ($arg_ty:ty) -> $ret_ty:ty) => {
+        async fn $request(Json(args): Json<$arg_ty>) -> Result<Json<$ret_ty>, WebBackEndError> {
             Ok(Json(infra_lib::$request(args)?))
         }
     };
@@ -49,7 +87,14 @@ call_macro_with_request_list!(implement_requests);
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let router = router().layer(CorsLayer::permissive());
+    let unlock_pattern = std::env::var("TALLYTAIL_UNLOCK_PATTERN")
+        .map_err(|_| eyre::eyre!("TALLYTAIL_UNLOCK_PATTERN is required for web access"))?;
+    let data_dir = std::env::var("TALLYTAIL_DATA_DIR")
+        .map_err(|_| eyre::eyre!("TALLYTAIL_DATA_DIR is required for web access state"))?;
+    let access_control = AccessControl::new(unlock_pattern, PathBuf::from(data_dir))?;
+    let router = build_router()
+        .with_state(access_control)
+        .layer(CorsLayer::permissive());
     let port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "3000".to_string())
         .parse()
