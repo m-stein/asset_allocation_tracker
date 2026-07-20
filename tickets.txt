@@ -133,3 +133,5 @@ T52: Store and check schema/format versions for DBs and allocation-record files
 T53: Add tool for creating backups of the data of a fly.io deployment
 
 T54: Add portfolio page
+
+T55: Add a favicon

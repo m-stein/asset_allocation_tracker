@@ -1,3 +1,5 @@
 [build]
 target = "index.html"
 dist = "dist"
+[[copy_files]]
+source = "squirrel_68x68.png"
