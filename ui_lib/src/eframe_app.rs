@@ -122,6 +122,7 @@ fn format_updated_at(date: Option<&str>, time: Option<&str>) -> String {
 #[derive(PartialEq)]
 enum Page {
     MainMenu,
+    Portfolio,
     AllocationDiagram,
     AddAsset,
     ConfigureCategories,
@@ -157,6 +158,7 @@ pub struct EframeApp<B: AppBackend> {
     transaction_asset_isins_input: String,
     transaction_assets: Vec<TransactionAsset>,
     portfolio_overview_items: Vec<PortfolioOverviewItem>,
+    portfolio_filter: String,
     portfolio_isin_items: Vec<PortfolioIsinItem>,
     portfolio_isin: Option<String>,
     portfolio_asset_name: Option<String>,
@@ -216,6 +218,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
             transaction_asset_isins_input: String::new(),
             transaction_assets: Vec::new(),
             portfolio_overview_items: Vec::new(),
+            portfolio_filter: String::new(),
             portfolio_isin_items: Vec::new(),
             portfolio_isin: None,
             portfolio_asset_name: None,
@@ -457,6 +460,13 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
         self.portfolio_asset_name = None;
         self.portfolio_isin_items.clear();
         self.reset_portfolio_sale_inputs();
+        self.start_list_portfolio_overview_items();
+        self.message = None;
+        Ok(())
+    }
+
+    fn init_portfolio_page(&mut self) -> eyre::Result<()> {
+        self.portfolio_filter.clear();
         self.start_list_portfolio_overview_items();
         self.message = None;
         Ok(())
@@ -975,6 +985,85 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                 .collect();
             self.start_import_transaction_assets(core_lib::ImportTransactionAssetsInput { isins });
         }
+    }
+
+    fn portfolio_position_matches_filter(position: &PortfolioOverviewItem, filter: &str) -> bool {
+        let filter = filter.trim().to_lowercase();
+        filter.is_empty()
+            || position.isin.to_lowercase().contains(&filter)
+            || position
+                .asset_name
+                .as_deref()
+                .is_some_and(|name| name.to_lowercase().contains(&filter))
+    }
+
+    fn show_portfolio_page(&mut self, ui: &mut egui::Ui) {
+        self.show_back_header(ui, "Portfolio", |app| {
+            app.page = Page::MainMenu;
+        });
+
+        ui.add_sized(
+            [Self::DEFAULT_INPUT_WIDTH, Self::DEFAULT_INPUT_HEIGHT],
+            TextEdit::singleline(&mut self.portfolio_filter).hint_text("Filter by name or ISIN"),
+        );
+        ui.add_space(Self::SPACE_3);
+
+        if self.portfolio_overview_items.is_empty() {
+            ui.label("No open positions.");
+            return;
+        }
+
+        let filtered_positions: Vec<_> = self
+            .portfolio_overview_items
+            .iter()
+            .filter(|position| {
+                Self::portfolio_position_matches_filter(position, &self.portfolio_filter)
+            })
+            .collect();
+
+        if filtered_positions.is_empty() {
+            ui.label("No positions match the filter.");
+            return;
+        }
+
+        egui::Grid::new("portfolio_page_positions_grid")
+            .striped(true)
+            .spacing(Self::TABLE_GRID_SPACING)
+            .show(ui, |ui| {
+                ui.strong("Name / ISIN");
+                ui.strong("Qty");
+                ui.strong("Value / Price");
+                ui.strong("Ccy");
+                ui.end_row();
+
+                for position in filtered_positions {
+                    ui.vertical(|ui| {
+                        let asset_name = value_or_unknown(position.asset_name.as_deref());
+                        let response = ui.label(
+                            egui::RichText::new(trunc_str(
+                                asset_name,
+                                Self::ASSET_NAME_DISPLAY_LEN,
+                            ))
+                            .strong(),
+                        );
+                        if asset_name != UNKNOWN_STR {
+                            response.on_hover_text(asset_name);
+                        }
+                        ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                        ui.label(&position.isin);
+                    });
+                    ui.label(Self::format_decimal_for_display(&position.quantity));
+                    ui.vertical(|ui| {
+                        ui.label(Self::format_decimal_for_display(&position.total_value));
+                        ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
+                        ui.label(Self::format_decimal_for_display(
+                            &position.average_share_price,
+                        ));
+                    });
+                    ui.label(&position.currency);
+                    ui.end_row();
+                }
+            });
     }
 
     fn show_log_sell_transaction_page(&mut self, ui: &mut egui::Ui) {
@@ -1546,6 +1635,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                 "Add Allocation Record",
                 Self::init_add_allocation_record_page,
             );
+            self.show_page_button(ui, Page::Portfolio, "Portfolio", Self::init_portfolio_page);
             self.show_page_button(
                 ui,
                 Page::Transactions,
@@ -1591,6 +1681,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
             } else {
                 match self.page {
                     Page::MainMenu => self.show_main_menu_page(ui),
+                    Page::Portfolio => self.show_portfolio_page(ui),
                     Page::AddAsset => self.show_add_asset_page(ui),
                     Page::AllocationDiagram => self.show_allocation_diagram_page(ui),
                     Page::ConfigureCategories => self.show_configure_categories_page(ui),
