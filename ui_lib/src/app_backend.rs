@@ -1,4 +1,4 @@
-use core_lib::call_macro_with_request_list;
+use core_lib::with_gui_requests;
 use std::sync::mpsc::Receiver;
 
 macro_rules! define_app_backend {
@@ -21,4 +21,4 @@ macro_rules! define_app_backend {
     };
 }
 
-call_macro_with_request_list!(define_app_backend);
+with_gui_requests!(define_app_backend);

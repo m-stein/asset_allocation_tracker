@@ -1,3 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["core_lib", "ui_lib", "web_back_end", "web_front_end", "desktop_app"]
+members = [
+    "core_lib",
+    "ui_lib",
+    "web_back_end",
+    "web_front_end",
+    "desktop_app",
+    "data_tools",
+]

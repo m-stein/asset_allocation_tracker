@@ -1,4 +1,9 @@
-/// Calls the given macro with the canonical request contract shared by all app variants.
+/// Macros that call a given macro with the canonical request API of the app backend
+///
+/// Request-list macro variants:
+///
+/// - `with_gui_requests!`: requests used by the GUI frontend of the app
+/// - `with_nogui_requests!`: requests used only by external tools
 ///
 /// Request declarations use this syntax:
 ///
@@ -17,9 +22,10 @@
 /// - `#[access(Public)]` means the web backend exposes the request without an access token.
 /// - `#[access(Token)]` means the web backend requires a valid access token for that request.
 ///
-/// Keep this list as the single source of truth for generated frontend/backend request plumbing.
+/// Keep these lists as the single source of truth for generated request plumbing.
+
 #[macro_export]
-macro_rules! call_macro_with_request_list {
+macro_rules! with_gui_requests {
     ($macro:ident) => {
         $macro! {
             #[access(Public)]
@@ -52,6 +58,16 @@ macro_rules! call_macro_with_request_list {
             load_png_data(String) -> Vec<u8>;
             #[access(Token)]
             configure_categories(core_lib::ConfigureCatgoriesInput) -> (core_lib::ConfigureCatgoriesInput, Option<String>);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! with_nogui_requests {
+    ($macro:ident) => {
+        $macro! {
+            #[access(Token)]
+            create_data_backup() -> Vec<u8>;
         }
     };
 }

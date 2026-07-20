@@ -6,7 +6,7 @@ use core_lib::{
     AssetReferenceType, Category, CategoryAssignmentPc, CategoryValueInput,
     ConfigureCatgoriesInput, GetAllocDiagramDataArgs, ListedTransaction, LogBuyTransactionInput,
     LogSellTransactionInput, NewCategoryInput, PortfolioIsinItem, PortfolioOverviewItem,
-    TransactionAsset, TransactionType, call_macro_with_request_list,
+    TransactionAsset, TransactionType, with_gui_requests,
 };
 use eframe::egui;
 use egui::{TextEdit, TextWrapMode, Widget};
@@ -30,7 +30,7 @@ macro_rules! define_request_data {
     }
 }
 
-call_macro_with_request_list!(define_request_data);
+with_gui_requests!(define_request_data);
 
 macro_rules! implement_requests {
 
@@ -227,7 +227,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
         Ok(app)
     }
 
-    call_macro_with_request_list!(implement_requests);
+    with_gui_requests!(implement_requests);
 
     fn decr_pending_req_cnt(&mut self) {
         if self.pending_req_cnt > 0 {

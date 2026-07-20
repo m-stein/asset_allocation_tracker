@@ -20,6 +20,7 @@ COPY core_lib ./core_lib
 COPY ui_lib ./ui_lib
 COPY infra_lib ./infra_lib
 COPY desktop_app ./desktop_app
+COPY data_tools ./data_tools
 COPY web_back_end ./web_back_end
 COPY web_front_end ./web_front_end
 COPY img ./img

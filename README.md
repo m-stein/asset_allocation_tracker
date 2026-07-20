@@ -88,9 +88,46 @@ Fly volume:
 flyctl ssh console --app tallytail -C "rm -f /app/data/access_control_state.ron"
 ```
 
+In case that Fly says that the VM is not ready for executing commands, check its state
+and try starting the VM:
+
+```powershell
+fly status -a tallytail
+fly machine list -a tallytail
+fly machine start <MACHINE_ID> -a tallytail
+```
+
+## Data Tools
+
+Small command-line tools for operating on Tallytail data live in `data_tools`.
+
+### Create data backup from fly.io account
+
+Create a compressed local backup of the Fly.io volume-mounted data files:
+
+```powershell
+cargo run -p data_tools --bin fly_data_backup -- --url https://tallytail.fly.dev --out-dir C:\Backups\Tallytail --unlock-pattern 123456789
+```
+
+The backup file is named like `tallytail-data-20260707-213000.tar.gz`.
+It contains only:
+
+- `assets.sdb`
+- `transactions.sdb`
+- `allocation_records/`
+
+The tool checks the Fly Machines for the app, selects a Machine with the
+`/app/data` mount, and starts it automatically if it is stopped.
+
+The local tool unlocks the web backend and requests a server-side backup. The
+backend uses SQLite's online backup API for the `.sdb` files and returns the
+compressed archive to the local tool. It does not store backup archives on the
+Fly volume.
+
+
 ## Participate in development
 
-## Preparing changes for a commit
+### Preparing changes for a commit
 
 ```powershell
 ./precommit.ps1

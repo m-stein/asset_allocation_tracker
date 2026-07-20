@@ -10,25 +10,15 @@ use axum::{
     response::Html,
     routing::{get, get_service, post},
 };
-use core_lib::call_macro_with_request_list;
+use core_lib::{with_gui_requests, with_nogui_requests};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
-macro_rules! implement_requests {
+macro_rules! implement_request_handlers {
     ($(#[access($access:ident)] $request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
-
-        fn build_router() -> Router<AccessControl> {
-            let static_service = get_service(ServeDir::new("web_front_end/dist"));
-
-            Router::new()
-                $(.route(concat!("/", stringify!($request)), post($request)))*
-                .route("/", get(index))
-                .fallback_service(static_service)
-        }
-
-        $(implement_requests!(@handler $access $request ($($arg_ty)?) -> $ret_ty);)*
+        $(implement_request_handlers!(@handler $access $request ($($arg_ty)?) -> $ret_ty);)*
     };
     (@handler Public unlock ($arg_ty:ty) -> $ret_ty:ty) => {
         async fn unlock(
@@ -79,11 +69,29 @@ macro_rules! implement_requests {
     };
 }
 
+macro_rules! create_request_router {
+    ($(#[access($access:ident)] $request:ident($($arg_ty:ty)?) -> $ret_ty:ty;)*) => {
+        Router::new()
+            $(.route(concat!("/", stringify!($request)), post($request)))*
+    };
+}
+
+fn build_router() -> Router<AccessControl> {
+    let static_service = get_service(ServeDir::new("web_front_end/dist"));
+
+    Router::new()
+        .merge(with_gui_requests!(create_request_router))
+        .merge(with_nogui_requests!(create_request_router))
+        .route("/", get(index))
+        .fallback_service(static_service)
+}
+
 async fn index() -> Html<String> {
     Html(std::fs::read_to_string("web_front_end/dist/index.html").unwrap())
 }
 
-call_macro_with_request_list!(implement_requests);
+with_gui_requests!(implement_request_handlers);
+with_nogui_requests!(implement_request_handlers);
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {

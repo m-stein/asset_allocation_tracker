@@ -8,13 +8,16 @@ use core_lib::{
     category_value::CategoryValue,
 };
 use eyre::eyre;
+use flate2::{Compression, write::GzEncoder};
 use rusqlite::{OptionalExtension, params, types::FromSqlError};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashSet},
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 pub const TRANSACTIONS_DB_SCHEMA_VERSION: u64 = 1;
@@ -22,6 +25,7 @@ pub const ASSETS_DB_SCHEMA_VERSION: u64 = 1;
 pub const ALLOCATION_RECORD_FORMAT_VERSION: u64 = 1;
 
 const SCHEMA_VERSION_KEY: &str = "schema_version";
+static DATA_BACKUP_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PersistedAllocationRecord {
@@ -100,6 +104,32 @@ pub fn load_png_data(path: String) -> eyre::Result<Vec<u8>> {
     Ok(std::fs::read(path)?)
 }
 
+pub fn create_data_backup() -> eyre::Result<Vec<u8>> {
+    let _backup_lock = DATA_BACKUP_LOCK
+        .lock()
+        .map_err(|_| eyre!("Data backup lock is poisoned"))?;
+    ensure_data_dir()?;
+
+    let temp_dir = tempfile::tempdir()?;
+    let assets_backup_path = temp_dir.path().join("assets.sdb");
+    let transactions_backup_path = temp_dir.path().join("transactions.sdb");
+
+    backup_database(&open_assets_connection()?, &assets_backup_path)?;
+    backup_database(&open_transactions_connection()?, &transactions_backup_path)?;
+
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    append_file_to_tar(&mut encoder, &assets_backup_path, "assets.sdb")?;
+    append_file_to_tar(&mut encoder, &transactions_backup_path, "transactions.sdb")?;
+    append_directory_to_tar(
+        &mut encoder,
+        &allocation_records_dir(),
+        "allocation_records",
+    )?;
+    write_tar_end(&mut encoder)?;
+
+    Ok(encoder.finish()?)
+}
+
 pub fn add_asset(args: AddAssetArgs) -> eyre::Result<()> {
     let name = args.name.trim();
     if name.is_empty() {
@@ -139,6 +169,117 @@ pub fn add_asset(args: AddAssetArgs) -> eyre::Result<()> {
         }
     }
     add_asset_raw(&asset, &catgy_assignms)
+}
+
+fn backup_database(connection: &rusqlite::Connection, backup_path: &Path) -> eyre::Result<()> {
+    connection.backup("main", backup_path, None)?;
+    Ok(())
+}
+
+fn append_directory_to_tar(
+    writer: &mut impl Write,
+    source_dir: &Path,
+    archive_path: &str,
+) -> eyre::Result<()> {
+    if !source_dir.exists() {
+        append_tar_directory(writer, archive_path)?;
+        return Ok(());
+    }
+
+    append_tar_directory(writer, archive_path)?;
+    let mut entries = fs::read_dir(source_dir)?.collect::<Result<Vec<_>, _>>()?;
+    entries.sort_by_key(|entry| entry.path());
+
+    for entry in entries {
+        let path = entry.path();
+        let entry_name = entry.file_name();
+        let entry_name = entry_name
+            .to_str()
+            .ok_or_else(|| eyre!("Backup path is not valid UTF-8"))?;
+        let archive_entry_path = format!("{archive_path}/{entry_name}");
+
+        if path.is_dir() {
+            append_directory_to_tar(writer, &path, &archive_entry_path)?;
+        } else if path.is_file() {
+            append_file_to_tar(writer, &path, &archive_entry_path)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn append_file_to_tar(
+    writer: &mut impl Write,
+    source_path: &Path,
+    archive_path: &str,
+) -> eyre::Result<()> {
+    let bytes = fs::read(source_path)?;
+    write_tar_header(writer, archive_path, bytes.len() as u64, b'0')?;
+    writer.write_all(&bytes)?;
+    write_tar_padding(writer, bytes.len() as u64)?;
+    Ok(())
+}
+
+fn append_tar_directory(writer: &mut impl Write, archive_path: &str) -> eyre::Result<()> {
+    let archive_path = format!("{}/", archive_path.trim_end_matches('/'));
+    write_tar_header(writer, &archive_path, 0, b'5')
+}
+
+fn write_tar_header(
+    writer: &mut impl Write,
+    archive_path: &str,
+    size: u64,
+    typeflag: u8,
+) -> eyre::Result<()> {
+    let mut header = [0_u8; 512];
+    write_tar_string(&mut header[0..100], archive_path)?;
+    write_tar_octal(&mut header[100..108], 0o644);
+    write_tar_octal(&mut header[108..116], 0);
+    write_tar_octal(&mut header[116..124], 0);
+    write_tar_octal(&mut header[124..136], size);
+    write_tar_octal(&mut header[136..148], 0);
+    header[148..156].fill(b' ');
+    header[156] = typeflag;
+    write_tar_string(&mut header[257..263], "ustar")?;
+    write_tar_string(&mut header[263..265], "00")?;
+
+    let checksum: u32 = header.iter().map(|byte| u32::from(*byte)).sum();
+    write_tar_checksum(&mut header[148..156], checksum);
+
+    writer.write_all(&header)?;
+    Ok(())
+}
+
+fn write_tar_string(field: &mut [u8], value: &str) -> eyre::Result<()> {
+    let value = value.as_bytes();
+    if value.len() > field.len() {
+        return Err(eyre!("Backup archive path is too long"));
+    }
+    field[..value.len()].copy_from_slice(value);
+    Ok(())
+}
+
+fn write_tar_octal(field: &mut [u8], value: u64) {
+    let formatted = format!("{:0width$o}\0", value, width = field.len() - 1);
+    field.copy_from_slice(formatted.as_bytes());
+}
+
+fn write_tar_checksum(field: &mut [u8], checksum: u32) {
+    let formatted = format!("{:06o}\0 ", checksum);
+    field.copy_from_slice(formatted.as_bytes());
+}
+
+fn write_tar_padding(writer: &mut impl Write, size: u64) -> eyre::Result<()> {
+    let padding = (512 - (size % 512)) % 512;
+    if padding > 0 {
+        writer.write_all(&vec![0_u8; padding as usize])?;
+    }
+    Ok(())
+}
+
+fn write_tar_end(writer: &mut impl Write) -> eyre::Result<()> {
+    writer.write_all(&[0_u8; 1024])?;
+    Ok(())
 }
 
 pub fn log_buy_transaction(input: LogBuyTransactionInput) -> eyre::Result<()> {
@@ -1306,9 +1447,11 @@ pub fn configure_categories(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use flate2::read::GzDecoder;
     use jiff::Zoned;
     use std::{
         collections::HashMap,
+        io::Read,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -1450,6 +1593,35 @@ mod tests {
         assert!(paths.is_empty());
         assert!(dir.is_dir());
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn creates_data_backup_with_only_restore_root_entries() {
+        let dir = unique_test_path("data_backup");
+        let previous_data_dir = env::var_os("TALLYTAIL_DATA_DIR");
+        unsafe {
+            env::set_var("TALLYTAIL_DATA_DIR", &dir);
+        }
+        fs::create_dir_all(dir.join("allocation_records")).unwrap();
+        fs::write(dir.join("allocation_records").join("record.ron"), "record").unwrap();
+
+        let archive = create_data_backup().unwrap();
+        let entry_names = tar_entry_names_from_gzip(&archive);
+
+        assert!(entry_names.contains(&"assets.sdb".to_string()));
+        assert!(entry_names.contains(&"transactions.sdb".to_string()));
+        assert!(entry_names.contains(&"allocation_records/".to_string()));
+        assert!(entry_names.contains(&"allocation_records/record.ron".to_string()));
+        assert!(!entry_names.iter().any(|name| name.starts_with("data/")));
+
+        std::fs::remove_dir_all(dir).unwrap();
+        unsafe {
+            if let Some(previous_data_dir) = previous_data_dir {
+                env::set_var("TALLYTAIL_DATA_DIR", previous_data_dir);
+            } else {
+                env::remove_var("TALLYTAIL_DATA_DIR");
+            }
+        }
     }
 
     #[test]
@@ -1699,5 +1871,41 @@ mod tests {
             .to_string();
 
         assert!(err.contains("quantity * share price"));
+    }
+
+    fn tar_entry_names_from_gzip(archive: &[u8]) -> Vec<String> {
+        let mut tar_bytes = Vec::new();
+        GzDecoder::new(archive).read_to_end(&mut tar_bytes).unwrap();
+
+        let mut names = Vec::new();
+        let mut offset = 0;
+        while offset + 512 <= tar_bytes.len() {
+            let header = &tar_bytes[offset..offset + 512];
+            if header.iter().all(|byte| *byte == 0) {
+                break;
+            }
+
+            let name_end = header[0..100]
+                .iter()
+                .position(|byte| *byte == 0)
+                .unwrap_or(100);
+            names.push(String::from_utf8(header[0..name_end].to_vec()).unwrap());
+
+            let size_end = header[124..136]
+                .iter()
+                .position(|byte| *byte == 0 || *byte == b' ')
+                .unwrap_or(12);
+            let size = u64::from_str_radix(
+                std::str::from_utf8(&header[124..124 + size_end])
+                    .unwrap()
+                    .trim(),
+                8,
+            )
+            .unwrap();
+            let padded_size = size.div_ceil(512) * 512;
+            offset += 512 + padded_size as usize;
+        }
+
+        names
     }
 }

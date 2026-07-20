@@ -1,4 +1,4 @@
-use core_lib::call_macro_with_request_list;
+use core_lib::with_gui_requests;
 use std::sync::mpsc::{Receiver, channel};
 use std::thread;
 use ui_lib::app_backend::AppBackend;
@@ -55,5 +55,5 @@ macro_rules! implement_requests {
 pub struct DesktopBackend;
 
 impl AppBackend for DesktopBackend {
-    call_macro_with_request_list!(implement_requests);
+    with_gui_requests!(implement_requests);
 }

@@ -1,4 +1,4 @@
-use core_lib::call_macro_with_request_list;
+use core_lib::with_gui_requests;
 use serde::{Serialize, de::DeserializeOwned};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -170,5 +170,5 @@ impl WebBackend {
 }
 
 impl AppBackend for WebBackend {
-    call_macro_with_request_list!(implement_requests);
+    with_gui_requests!(implement_requests);
 }
