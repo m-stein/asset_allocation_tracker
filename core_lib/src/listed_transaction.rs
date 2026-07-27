@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListedTransaction {
     pub date: String,
+    pub time: String,
     pub r#type: TransactionType,
     pub asset_name: Option<String>,
     pub isin: String,

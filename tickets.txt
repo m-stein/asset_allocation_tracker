@@ -1,7 +1,9 @@
-Last added: T54
+Last added: T56
 
 Open
 ####
+
+T56: Support import of transactions from CSV files from finanzen-zero.net
 
 T50: Consider splitting up the request list into two lists with unlock in one and all remaining requests in the other.
      Unlock actually is LockScreen-specific and implemented in WebBackend and all other requests are implementend infra_lib

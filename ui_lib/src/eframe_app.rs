@@ -679,6 +679,12 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                     DatePickerButton::new(&mut self.log_buy_transaction_input.date),
                     None,
                 );
+                Self::show_widget_input_row(
+                    ui,
+                    "Time",
+                    TextEdit::singleline(&mut self.log_buy_transaction_input.time),
+                    Some("Execution time in HH:MM:SS format."),
+                );
                 Self::show_enum_input_row(
                     ui,
                     "Currency",
@@ -862,7 +868,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                     ui.vertical(|ui| {
                         ui.label(egui::RichText::new(quantity).color(color).strong());
                         ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
-                        ui.label(&transaction.date);
+                        ui.label(format!("{} {}", transaction.date, transaction.time));
                     });
                     ui.vertical(|ui| {
                         let asset_name = value_or_unknown(transaction.asset_name.as_deref());
@@ -1118,7 +1124,7 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                                 .strong(),
                             );
                             ui.add_space(Self::TRANSACTION_ASSET_ROW_LINE_SPACING);
-                            ui.label(&item.buy_date);
+                            ui.label(format!("{} {}", item.buy_date, item.buy_time));
                         });
                         ui.vertical(|ui| {
                             ui.label(Self::format_decimal_for_display(&item.order_value));
@@ -1149,6 +1155,12 @@ impl<BACKEND: AppBackend> EframeApp<BACKEND> {
                         "Date",
                         DatePickerButton::new(&mut self.log_sell_transaction_input.date),
                         None,
+                    );
+                    Self::show_widget_input_row(
+                        ui,
+                        "Time",
+                        TextEdit::singleline(&mut self.log_sell_transaction_input.time),
+                        Some("Execution time in HH:MM:SS format."),
                     );
                     Self::show_widget_input_row(
                         ui,

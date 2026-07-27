@@ -9,6 +9,7 @@ use core_lib::{
 };
 use eyre::eyre;
 use flate2::{Compression, write::GzEncoder};
+use jiff::civil::Time;
 use rusqlite::{OptionalExtension, params, types::FromSqlError};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -308,9 +309,14 @@ pub fn log_sell_transaction(input: LogSellTransactionInput) -> eyre::Result<()> 
 
     let asset_id = get_or_create_id(&tx, "assets", "isin", &sell_transaction.transaction.isin)?;
     for (portfolio_item_id, quantity) in &sell_transaction.portfolio_item_id_to_quantity {
-        let (item_asset_id, remaining_quantity, buy_date): (i64, String, String) = tx.query_row(
-            "
-            SELECT transactions.asset_id, portfolio_items.remaining_quantity, dates.date
+        let (item_asset_id, remaining_quantity, buy_date, buy_time): (i64, String, String, String) =
+            tx.query_row(
+                "
+            SELECT
+                transactions.asset_id,
+                portfolio_items.remaining_quantity,
+                dates.date,
+                transactions.time
             FROM portfolio_items
             JOIN transactions
                 ON transactions.id = portfolio_items.buy_transaction_id
@@ -318,15 +324,20 @@ pub fn log_sell_transaction(input: LogSellTransactionInput) -> eyre::Result<()> 
                 ON dates.id = transactions.date_id
             WHERE portfolio_items.id = ?1
             ",
-            params![portfolio_item_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
+                params![portfolio_item_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )?;
         if item_asset_id != asset_id {
             return Err(eyre!("Portfolio item does not belong to ISIN"));
         }
         let buy_date = jiff::civil::Date::strptime("%Y-%m-%d", &buy_date)?;
-        if sell_transaction.transaction.date < buy_date {
-            return Err(eyre!("Sell date must not be before buy date"));
+        let buy_time = parse_transaction_time("Buy time", &buy_time)?;
+        if (
+            sell_transaction.transaction.date,
+            sell_transaction.transaction.time,
+        ) < (buy_date, buy_time)
+        {
+            return Err(eyre!("Sell time must not be before buy time"));
         }
         let remaining_quantity = remaining_quantity
             .parse::<Decimal>()
@@ -415,6 +426,7 @@ struct Transaction {
     r#type: TransactionType,
     currency: Currency,
     date: jiff::civil::Date,
+    time: Time,
     isin: String,
     quantity: Decimal,
     share_price: Decimal,
@@ -429,6 +441,7 @@ struct SellTransaction {
 
 fn validate_log_buy_transaction_input(input: LogBuyTransactionInput) -> eyre::Result<Transaction> {
     validate_transaction_date(input.date, input.client_today)?;
+    let time = parse_transaction_time("Time", &input.time)?;
     let isin = normalize_isin(&input.isin)?;
     let quantity = parse_transaction_decimal("Quantity", &input.quantity)?;
     let share_price = parse_transaction_decimal("Share price", &input.share_price)?;
@@ -453,6 +466,7 @@ fn validate_log_buy_transaction_input(input: LogBuyTransactionInput) -> eyre::Re
         r#type: TransactionType::Buy,
         currency: input.currency,
         date: input.date,
+        time,
         isin,
         quantity,
         share_price,
@@ -464,6 +478,7 @@ fn validate_log_sell_transaction_input(
     input: LogSellTransactionInput,
 ) -> eyre::Result<SellTransaction> {
     validate_transaction_date(input.date, input.client_today)?;
+    let time = parse_transaction_time("Time", &input.time)?;
     let isin = normalize_isin(&input.isin)?;
     let share_price = parse_transaction_decimal("Share price", &input.share_price)?;
     let order_value = parse_transaction_decimal("Order value", &input.order_value)?;
@@ -506,6 +521,7 @@ fn validate_log_sell_transaction_input(
             r#type: TransactionType::Sell,
             currency: input.currency,
             date: input.date,
+            time,
             isin,
             quantity: total_quantity,
             share_price,
@@ -587,6 +603,11 @@ fn parse_transaction_decimal(field_name: &str, input: &str) -> eyre::Result<Deci
         .trim()
         .parse::<Decimal>()
         .map_err(|_| eyre!("{field_name} must be a valid decimal number"))
+}
+
+fn parse_transaction_time(field_name: &str, input: &str) -> eyre::Result<Time> {
+    Time::strptime("%H:%M:%S", input.trim())
+        .map_err(|_| eyre!("{field_name} must be a valid time in HH:MM:SS format"))
 }
 
 fn validate_transaction_date(
@@ -698,6 +719,7 @@ fn initialize_transactions_schema(connection: &rusqlite::Connection) -> eyre::Re
         CREATE TABLE transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date_id INTEGER NOT NULL,
+            time TEXT NOT NULL,
             type_id INTEGER NOT NULL,
             asset_id INTEGER NOT NULL,
             currency_id INTEGER NOT NULL,
@@ -860,6 +882,7 @@ fn insert_transaction(
     let asset_id = get_or_create_id(connection, "assets", "isin", &transaction.isin)?;
     let transaction_date = transaction.date.to_string();
     let date_id = get_or_create_id(connection, "dates", "date", &transaction_date)?;
+    let transaction_time = transaction.time.strftime("%H:%M:%S").to_string();
     let now = jiff::Zoned::now();
     let created_at_date = now.date().to_string();
     let created_at_date_id = get_or_create_id(connection, "dates", "date", &created_at_date)?;
@@ -879,6 +902,7 @@ fn insert_transaction(
         INSERT INTO transactions
             (
                 date_id,
+                time,
                 type_id,
                 asset_id,
                 currency_id,
@@ -889,10 +913,11 @@ fn insert_transaction(
                 created_at_time
             )
         VALUES
-            (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
         ",
         params![
             date_id,
+            transaction_time,
             type_id,
             asset_id,
             currency_id,
@@ -1003,6 +1028,7 @@ fn list_transactions_raw(
         "
         SELECT
             dates.date,
+            transactions.time,
             transaction_types.code,
             assets.name,
             assets.isin,
@@ -1015,24 +1041,25 @@ fn list_transactions_raw(
         JOIN transaction_types ON transaction_types.id = transactions.type_id
         JOIN assets ON assets.id = transactions.asset_id
         JOIN currencies ON currencies.id = transactions.currency_id
-        ORDER BY dates.date DESC, transactions.id DESC
+        ORDER BY dates.date DESC, transactions.time DESC, transactions.id DESC
         LIMIT 50
         ",
     )?;
     let transactions = statement
         .query_and_then([], |row| {
-            let type_str: String = row.get(1)?;
+            let type_str: String = row.get(2)?;
             Ok(ListedTransaction {
                 date: row.get(0)?,
+                time: row.get(1)?,
                 r#type: type_str
                     .parse()
                     .map_err(|_| eyre!("Invalid transaction type: {type_str}"))?,
-                asset_name: row.get(2)?,
-                isin: row.get(3)?,
-                quantity: row.get(4)?,
-                share_price: row.get(5)?,
-                order_value: row.get(6)?,
-                currency: row.get(7)?,
+                asset_name: row.get(3)?,
+                isin: row.get(4)?,
+                quantity: row.get(5)?,
+                share_price: row.get(6)?,
+                order_value: row.get(7)?,
+                currency: row.get(8)?,
             })
         })?
         .collect::<eyre::Result<Vec<_>>>()?;
@@ -1042,6 +1069,7 @@ fn list_transactions_raw(
 struct QueriedPortfolioItem {
     id: i64,
     buy_date: String,
+    buy_time: String,
     asset_name: Option<String>,
     isin: String,
     quantity: String,
@@ -1060,6 +1088,7 @@ fn query_portfolio_items(
             portfolio_items.id,
             portfolio_items.buy_transaction_id,
             dates.date,
+            transactions.time,
             assets.name,
             assets.isin,
             transactions.quantity,
@@ -1077,7 +1106,7 @@ fn query_portfolio_items(
         JOIN currencies
             ON currencies.id = transactions.currency_id
         WHERE (?1 IS NULL OR assets.isin = ?1)
-        ORDER BY assets.isin ASC, dates.date ASC, portfolio_items.id ASC
+        ORDER BY assets.isin ASC, dates.date ASC, transactions.time ASC, portfolio_items.id ASC
         ",
     )?;
     let items = statement
@@ -1085,12 +1114,13 @@ fn query_portfolio_items(
             Ok(QueriedPortfolioItem {
                 id: row.get(0)?,
                 buy_date: row.get(2)?,
-                asset_name: row.get(3)?,
-                isin: row.get(4)?,
-                quantity: row.get(6)?,
-                share_price: row.get(7)?,
-                order_value: row.get(8)?,
-                currency: row.get(9)?,
+                buy_time: row.get(3)?,
+                asset_name: row.get(4)?,
+                isin: row.get(5)?,
+                quantity: row.get(7)?,
+                share_price: row.get(8)?,
+                order_value: row.get(9)?,
+                currency: row.get(10)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?
@@ -1113,6 +1143,7 @@ fn list_portfolio_isin_items_raw(
         .map(|item| PortfolioIsinItem {
             portfolio_item_id: item.id,
             buy_date: item.buy_date,
+            buy_time: item.buy_time,
             quantity: item.quantity,
             share_price: item.share_price,
             order_value: item.order_value,
@@ -1459,6 +1490,7 @@ mod tests {
         LogBuyTransactionInput {
             currency: Currency::Eur,
             date: Zoned::now().date(),
+            time: "12:34:56".to_string(),
             client_today: Zoned::now().date(),
             isin: "US0378331005".to_string(),
             quantity: "2.5".to_string(),
@@ -1471,6 +1503,7 @@ mod tests {
         LogSellTransactionInput {
             currency: Currency::Eur,
             date: Zoned::now().date(),
+            time: "12:34:56".to_string(),
             client_today: Zoned::now().date(),
             isin: "US0378331005".to_string(),
             portfolio_item_id_to_quantity: HashMap::from([(1, "1.5".to_string())]),
@@ -1536,6 +1569,21 @@ mod tests {
 
         let version = get_database_schema_version(&connection, "assets database").unwrap();
         assert_eq!(version, ASSETS_DB_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn creates_transactions_schema_with_execution_time() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+
+        initialize_transactions_schema(&connection).unwrap();
+
+        let has_time_column: bool = connection
+            .prepare("PRAGMA table_info(transactions)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .any(|column| column.unwrap() == "time");
+        assert!(has_time_column);
     }
 
     #[test]
@@ -1751,6 +1799,18 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_buy_transaction_time_format() {
+        let mut input = valid_log_buy_transaction_input();
+        input.time = "12:34".to_string();
+
+        let err = validate_log_buy_transaction_input(input)
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("HH:MM:SS"));
+    }
+
+    #[test]
     fn accepts_valid_sell_transaction_input() {
         validate_log_sell_transaction_input(valid_log_sell_transaction_input()).unwrap();
     }
@@ -1859,6 +1919,18 @@ mod tests {
             .to_string();
 
         assert!(err.contains("Order value must be a valid decimal number"));
+    }
+
+    #[test]
+    fn rejects_invalid_sell_transaction_time_format() {
+        let mut input = valid_log_sell_transaction_input();
+        input.time = "12:34".to_string();
+
+        let err = validate_log_sell_transaction_input(input)
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("HH:MM:SS"));
     }
 
     #[test]

@@ -11,6 +11,16 @@ pub enum Currency {
     Usd,
 }
 
+fn current_time_to_second() -> String {
+    let time = Zoned::now().time();
+    format!(
+        "{:02}:{:02}:{:02}",
+        time.hour(),
+        time.minute(),
+        time.second()
+    )
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogBuyTransactionInput {
     pub currency: Currency,
@@ -19,6 +29,7 @@ pub struct LogBuyTransactionInput {
     pub share_price: String,
     pub order_value: String,
     pub date: Date,
+    pub time: String,
     pub client_today: Date,
 }
 
@@ -28,6 +39,7 @@ impl Default for LogBuyTransactionInput {
         Self {
             currency: Currency::Eur,
             date: today,
+            time: current_time_to_second(),
             client_today: today,
             isin: String::new(),
             quantity: String::new(),
@@ -45,6 +57,7 @@ pub struct LogSellTransactionInput {
     pub share_price: String,
     pub order_value: String,
     pub date: Date,
+    pub time: String,
     pub client_today: Date,
 }
 
@@ -58,6 +71,7 @@ impl Default for LogSellTransactionInput {
             share_price: String::new(),
             order_value: String::new(),
             date: today,
+            time: current_time_to_second(),
             client_today: today,
         }
     }

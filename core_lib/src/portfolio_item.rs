@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct PortfolioIsinItem {
     pub portfolio_item_id: i64,
     pub buy_date: String,
+    pub buy_time: String,
     pub quantity: String,
     pub share_price: String,
     pub order_value: String,
